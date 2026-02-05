@@ -24,18 +24,12 @@ body {
   background: var(--bg);
   min-height: 100vh;
   position: relative;
-  overflow-y: scroll; /* 強制顯示滾動條 */
-}
-
-html {
-  overflow-y: scroll; /* 強制顯示滾動條 */
 }
 
 /* 網頁滾動條樣式 - 通用所有元素 */
 html,
 body,
 * {
-  scrollbar-width: thin !important;
   scrollbar-color: rgba(255, 255, 255, 0.25) transparent !important;
 }
 
