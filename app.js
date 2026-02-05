@@ -145,6 +145,7 @@ async function loadAlbums() {
     }
     btn.addEventListener("click", () => loadAlbum(album.id));
     
+    const actions = document.createElement("div");
     const deleteBtn = document.createElement("button");
     deleteBtn.textContent = "×";
     deleteBtn.className = "btn ghost album-delete-btn";
@@ -155,9 +156,10 @@ async function loadAlbums() {
         await deleteAlbum(album.id);
       }
     });
+    actions.appendChild(deleteBtn);
     
     item.appendChild(btn);
-    item.appendChild(deleteBtn);
+    item.appendChild(actions);
     ui.albumList.appendChild(item);
   });
 }

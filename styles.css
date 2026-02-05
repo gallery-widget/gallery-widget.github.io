@@ -182,7 +182,6 @@ h2, h3 {
   background: transparent;
   color: var(--ink);
   border: 1px solid rgba(148, 163, 184, 0.3);
-  width: 10%;
 }
 
 .btn.primary {
@@ -256,9 +255,6 @@ h2, h3 {
   padding: 10px 14px !important;
   font-size: 20px;
   line-height: 1;
-  min-width: 44px;
-  flex-shrink: 0;
-  border-radius: 8px !important;
 }
 
 .album-delete-btn:hover {

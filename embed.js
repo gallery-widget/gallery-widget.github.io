@@ -255,27 +255,71 @@ function renderThumbnail(album, images) {
   function downloadCurrentImage() {
     const image = getCurrentImage();
     const url = supabase.storage.from(BUCKET).getPublicUrl(image.path).data.publicUrl;
-    const link = document.createElement("a");
-    link.href = url;
-    link.download = image.path.split("/").pop() || "image";
-    document.body.appendChild(link);
-    link.click();
-    link.remove();
+    
+    // 使用 fetch 获取 blob 绕过跨域限制
+    fetch(url)
+      .then(response => {
+        if (!response.ok) {
+          throw new Error('下載失敗');
+        }
+        return response.blob();
+      })
+      .then(blob => {
+        const blobUrl = URL.createObjectURL(blob);
+        const link = document.createElement("a");
+        link.href = blobUrl;
+        link.download = image.path.split("/").pop() || "image.jpg";
+        document.body.appendChild(link);
+        link.click();
+        link.remove();
+        URL.revokeObjectURL(blobUrl);
+      })
+      .catch(error => {
+        console.error('下載錯誤:', error);
+        alert("下載失敗，請在新分頁開啟圖片後手動儲存。");
+        // 備用方案：直接開啟圖片
+        window.open(url, "_blank", "noopener");
+      });
   }
 
   async function copyCurrentImage() {
     const image = getCurrentImage();
     const url = supabase.storage.from(BUCKET).getPublicUrl(image.path).data.publicUrl;
+    
+    // 檢查瀏覽器支援
     if (!navigator.clipboard || !window.ClipboardItem) {
-      alert("此瀏覽器不支援複製圖片。");
+      alert("此瀏覽器不支援複製圖片功能。");
       return;
     }
+    
     try {
-      const response = await fetch(url, { mode: "cors" });
+      // 使用 fetch 獲取圖片
+      const response = await fetch(url);
+      if (!response.ok) {
+        throw new Error('無法載入圖片');
+      }
+      
       const blob = await response.blob();
-      await navigator.clipboard.write([new ClipboardItem({ [blob.type]: blob })]);
+      
+      // 寫入剪貼簿
+      await navigator.clipboard.write([
+        new ClipboardItem({
+          [blob.type]: blob
+        })
+      ]);
+      
+      // 成功提示（可選）
+      console.log('圖片已複製');
     } catch (error) {
-      alert("複製失敗，請手動下載。");
+      console.error('複製錯誤:', error);
+      
+      // 如果是 CORS 錯誤或不支援，嘗試複製 URL 作為備用
+      try {
+        await navigator.clipboard.writeText(url);
+        alert("無法複製圖片，已複製圖片網址到剪貼簿。");
+      } catch {
+        alert("複製失敗。此功能需要圖片伺服器支援跨域存取（CORS）。");
+      }
     }
   }
 
