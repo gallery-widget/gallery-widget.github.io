@@ -413,12 +413,14 @@ h2, h3 {
   font-size: clamp(16px, 2.4vw, 24px);
   font-weight: 700;
   color: white;
+  text-shadow: 0 0 8px rgba(0, 0, 0, 0.8), 0 2px 4px rgba(0, 0, 0, 0.6);
 }
 
 .slideshow-caption {
   margin: 0;
   font-size: clamp(12px, 1.6vw, 14px);
   color: rgba(255,255,255,0.9);
+  text-shadow: 0 0 6px rgba(0, 0, 0, 0.8), 0 1px 3px rgba(0, 0, 0, 0.6);
 }
 
 .slideshow-btn {
@@ -434,6 +436,7 @@ h2, h3 {
   cursor: pointer;
   transition: opacity 0.2s ease;
   z-index: 10;
+  text-shadow: 0 0 8px rgba(0, 0, 0, 0.8), 0 2px 4px rgba(0, 0, 0, 0.6);
 }
 
 .slideshow-btn:hover {
@@ -520,28 +523,30 @@ h2, h3 {
   font-size: clamp(16px, 2.4vw, 24px);
   font-weight: 700;
   color: white;
+  text-shadow: 0 0 8px rgba(0, 0, 0, 0.8), 0 2px 4px rgba(0, 0, 0, 0.6);
 }
 
 .thumbnail-caption {
   margin: 0;
   font-size: clamp(12px, 1.6vw, 14px);
   color: rgba(255,255,255,0.9);
+  text-shadow: 0 0 6px rgba(0, 0, 0, 0.8), 0 1px 3px rgba(0, 0, 0, 0.6);
 }
 
 .thumbnail-bar-container {
   width: 100%;
-  padding: 0;
+  padding: 8px 0;
   background: transparent;
 }
 
 .thumbnail-bar {
   display: flex;
-  gap: 0;
+  gap: 4px;
   overflow-x: auto;
-  padding: 0;
+  padding: 0 8px;
   scrollbar-width: thin;
   scrollbar-color: rgba(255, 255, 255, 0.3) transparent;
-  justify-content: flex-start;
+  justify-content: center;
 }
 
 .thumbnail-bar::-webkit-scrollbar {
@@ -558,17 +563,21 @@ h2, h3 {
 }
 
 .thumbnail {
-  height: 40px;
+  height: 60px;
   width: auto;
-  min-width: 40px;
-  object-fit: cover;
+  min-width: 60px;
+  object-fit: contain;
   cursor: pointer;
+  opacity: 0.5;
   flex-shrink: 0;
   border-radius: 0;
+  transition: opacity 0.3s ease;
+  border: 2px solid transparent;
 }
 
 .thumbnail.active {
   opacity: 1;
+  border-color: white;
 }
 
 @keyframes rise {

@@ -378,7 +378,17 @@ async function updateCaption(imageId, caption) {
 
   if (error) {
     setStatus(error.message);
+    return;
   }
+  
+  // 同步更新 state.images 以防止拖拽时丢失
+  const image = state.images.find(img => img.id === imageId);
+  if (image) {
+    image.caption = caption;
+  }
+  
+  // 更新预览面板
+  updateEmbed();
 }
 
 async function deleteImage(image) {
