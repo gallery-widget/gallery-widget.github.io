@@ -15,6 +15,112 @@ function getAlbumId() {
   return params.get("album");
 }
 
+// 通用工具函數
+function openBuilder() {
+  window.open("https://ebluvu.github.io/gallery-widget-v1/", "_blank", "noopener");
+}
+
+function toggleFullscreen() {
+  if (!document.fullscreenElement) {
+    document.documentElement.requestFullscreen().catch(() => {
+      alert("此瀏覽器不支援全螢幕。");
+    });
+    return;
+  }
+  document.exitFullscreen().catch(() => {
+    alert("無法退出全螢幕。");
+  });
+}
+
+function openCurrentImage(getCurrentImageFn) {
+  const image = getCurrentImageFn();
+  const url = supabase.storage.from(BUCKET).getPublicUrl(image.path).data.publicUrl;
+  window.open(url, "_blank", "noopener");
+}
+
+function downloadCurrentImage(getCurrentImageFn) {
+  const image = getCurrentImageFn();
+  const url = supabase.storage.from(BUCKET).getPublicUrl(image.path).data.publicUrl;
+  
+  try {
+    fetch(url)
+      .then(response => {
+        if (!response.ok) {
+          throw new Error('下載失敗');
+        }
+        return response.blob();
+      })
+      .then(blob => {
+        const blobUrl = URL.createObjectURL(blob);
+        const link = document.createElement("a");
+        link.href = blobUrl;
+        link.download = image.path.split("/").pop() || "image.jpg";
+        document.body.appendChild(link);
+        link.click();
+        link.remove();
+        URL.revokeObjectURL(blobUrl);
+      })
+      .catch(error => {
+        console.error('下載錯誤:', error);
+        window.open(url, "_blank", "noopener");
+        alert("若無法下載，請在新視窗中右鍵點擊圖片選擇另存新檔。");
+      });
+  } catch (error) {
+    console.error('下載失敗:', error);
+    window.open(url, "_blank", "noopener");
+  }
+}
+
+async function copyCurrentImage(getCurrentImageFn) {
+  const image = getCurrentImageFn();
+  const url = supabase.storage.from(BUCKET).getPublicUrl(image.path).data.publicUrl;
+  
+  if (!navigator.clipboard || !window.ClipboardItem) {
+    alert("此瀏覽器不支援複製圖片功能。");
+    return;
+  }
+  
+  try {
+    const response = await fetch(url);
+    if (!response.ok) {
+      throw new Error('無法載入圖片');
+    }
+    
+    const blob = await response.blob();
+    
+    let clipboardBlob = blob;
+    if (blob.type !== 'image/png') {
+      try {
+        const img = await createImageBitmap(blob);
+        const canvas = document.createElement('canvas');
+        canvas.width = img.width;
+        canvas.height = img.height;
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(img, 0, 0);
+        clipboardBlob = await new Promise(resolve => canvas.toBlob(resolve, 'image/png'));
+      } catch (convertError) {
+        console.warn('轉換 PNG 失敗，使用原格式:', convertError);
+      }
+    }
+    
+    const clipboardItem = new ClipboardItem({ [clipboardBlob.type]: clipboardBlob });
+    await navigator.clipboard.write([clipboardItem]);
+    alert("圖片已複製到剪貼簿！");
+  } catch (error) {
+    console.error('複製失敗:', error);
+    if (error.name === 'NotAllowedError') {
+      alert("此環境不支援複製圖片（如 Notion 嵌入）。請改用「開啟圖片」後手動複製。");
+    } else {
+      try {
+        await navigator.clipboard.writeText(url);
+        alert("此環境不支援圖片複製（如 Notion iframe），已複製圖片網址。\n建議用【另存圖片】功能。");
+      } catch {
+        alert("複製失敗。此環境可能限制了剪貼簿存取。\n建議改用【另存圖片】或【開啟圖片】功能。");
+      }
+    }
+  }
+}
+
 async function loadAlbum(albumId) {
   const { data: album, error } = await supabase
     .from("albums")
@@ -74,6 +180,9 @@ function renderSlideshow(album, images) {
   const overlay = document.createElement("div");
   overlay.className = "slideshow-overlay";
   
+  const overlayLeft = document.createElement("div");
+  overlayLeft.className = "slideshow-overlay-left";
+  
   const title = document.createElement("h1");
   title.className = "slideshow-title";
   title.textContent = album.title || "Gallery";
@@ -82,8 +191,48 @@ function renderSlideshow(album, images) {
   caption.className = "slideshow-caption";
   caption.textContent = images[0].caption || "";
   
-  overlay.appendChild(title);
-  overlay.appendChild(caption);
+  overlayLeft.appendChild(title);
+  overlayLeft.appendChild(caption);
+
+  const overlayRight = document.createElement("div");
+  overlayRight.className = "slideshow-overlay-right";
+
+  const menuButton = document.createElement("button");
+  menuButton.className = "slideshow-menu-btn";
+  menuButton.type = "button";
+  menuButton.setAttribute("aria-label", "開啟選單");
+  menuButton.textContent = "⋯";
+
+  const menu = document.createElement("div");
+  menu.className = "slideshow-menu";
+  menu.setAttribute("role", "menu");
+  menu.setAttribute("aria-hidden", "true");
+
+  const menuItems = [
+    { label: "全螢幕", action: () => toggleFullscreen() },
+    { label: "開啟圖片", action: () => openCurrentImage(() => images[currentIndex]) },
+    { label: "另存圖片", action: () => downloadCurrentImage(() => images[currentIndex]) },
+    { label: "複製圖片", action: () => copyCurrentImage(() => images[currentIndex]) },
+    { label: "建立你的相簿", action: () => openBuilder() },
+  ];
+
+  menuItems.forEach((item) => {
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = "slideshow-menu-item";
+    btn.textContent = item.label;
+    btn.addEventListener("click", () => {
+      item.action();
+      closeMenu();
+    });
+    menu.appendChild(btn);
+  });
+
+  overlayRight.appendChild(menuButton);
+  overlayRight.appendChild(menu);
+  
+  overlay.appendChild(overlayLeft);
+  overlay.appendChild(overlayRight);
   
   imageWrapper.appendChild(mainImage);
   imageWrapper.appendChild(overlay);
@@ -118,6 +267,36 @@ function renderSlideshow(album, images) {
       dot.classList.toggle("active", i === index);
     });
   }
+
+  function toggleMenu() {
+    const isOpen = menu.classList.toggle("open");
+    menu.setAttribute("aria-hidden", !isOpen);
+  }
+
+  function closeMenu() {
+    if (document.activeElement && menu.contains(document.activeElement)) {
+      document.activeElement.blur();
+    }
+    menu.classList.remove("open");
+    menu.setAttribute("aria-hidden", "true");
+  }
+
+  menuButton.addEventListener("click", (event) => {
+    event.stopPropagation();
+    toggleMenu();
+  });
+
+  container.addEventListener("click", (event) => {
+    if (!menu.contains(event.target) && !menuButton.contains(event.target)) {
+      closeMenu();
+    }
+  });
+
+  container.addEventListener("keydown", (event) => {
+    if (event.key === "Escape") {
+      closeMenu();
+    }
+  });
   
   prevBtn.addEventListener("click", () => {
     currentIndex = (currentIndex - 1 + images.length) % images.length;
@@ -189,9 +368,9 @@ function renderThumbnail(album, images) {
 
   const menuItems = [
     { label: "全螢幕", action: () => toggleFullscreen() },
-    { label: "開啟圖片", action: () => openCurrentImage() },
-    { label: "另存圖片", action: () => downloadCurrentImage() },
-    { label: "複製圖片", action: () => copyCurrentImage() },
+    { label: "開啟圖片", action: () => openCurrentImage(() => images[currentIndex]) },
+    { label: "另存圖片", action: () => downloadCurrentImage(() => images[currentIndex]) },
+    { label: "複製圖片", action: () => copyCurrentImage(() => images[currentIndex]) },
     { label: "建立你的相簿", action: () => openBuilder() },
   ];
 
@@ -226,129 +405,6 @@ function renderThumbnail(album, images) {
   
   let currentIndex = 0;
 
-  function getCurrentImage() {
-    return images[currentIndex];
-  }
-
-  function openBuilder() {
-    window.open("https://ebluvu.github.io/gallery-widget-v1/", "_blank", "noopener");
-  }
-
-  function toggleFullscreen() {
-    if (!document.fullscreenElement) {
-      document.documentElement.requestFullscreen().catch(() => {
-        alert("此瀏覽器不支援全螢幕。");
-      });
-      return;
-    }
-    document.exitFullscreen().catch(() => {
-      alert("無法退出全螢幕。");
-    });
-  }
-
-  function openCurrentImage() {
-    const image = getCurrentImage();
-    const url = supabase.storage.from(BUCKET).getPublicUrl(image.path).data.publicUrl;
-    window.open(url, "_blank", "noopener");
-  }
-
-  function downloadCurrentImage() {
-    const image = getCurrentImage();
-    const url = supabase.storage.from(BUCKET).getPublicUrl(image.path).data.publicUrl;
-    
-    // 嘗試直接下載，部分環境（如 Notion iframe）可能需要在新視窗中下載
-    try {
-      fetch(url)
-        .then(response => {
-          if (!response.ok) {
-            throw new Error('下載失敗');
-          }
-          return response.blob();
-        })
-        .then(blob => {
-          const blobUrl = URL.createObjectURL(blob);
-          const link = document.createElement("a");
-          link.href = blobUrl;
-          link.download = image.path.split("/").pop() || "image.jpg";
-          // 嘗試直接點擊下載
-          document.body.appendChild(link);
-          link.click();
-          link.remove();
-          URL.revokeObjectURL(blobUrl);
-        })
-        .catch(error => {
-          console.error('下載錯誤:', error);
-          // Notion iframe 可能無法直接下載，改為新視窗開啟
-          window.open(url, "_blank", "noopener");
-          alert("若無法下載，請在新視窗中右鍵點擊圖片選擇另存新檔。");
-        });
-    } catch (error) {
-      console.error('下載失敗:', error);
-      // 備用：直接在新視窗開啟
-      window.open(url, "_blank", "noopener");
-    }
-  }
-
-  async function copyCurrentImage() {
-    const image = getCurrentImage();
-    const url = supabase.storage.from(BUCKET).getPublicUrl(image.path).data.publicUrl;
-    
-    // 檢查瀏覽器支援
-    if (!navigator.clipboard || !window.ClipboardItem) {
-      alert("此瀏覽器不支援複製圖片功能。");
-      return;
-    }
-    
-    try {
-      // 使用 fetch 獲取圖片
-      const response = await fetch(url);
-      if (!response.ok) {
-        throw new Error('無法載入圖片');
-      }
-      
-      const blob = await response.blob();
-      
-      // 嘗試轉換為 PNG（更廣泛支援）
-      let clipboardBlob = blob;
-      if (blob.type !== 'image/png') {
-        try {
-          // 創建 canvas 轉換為 PNG
-          const img = await createImageBitmap(blob);
-          const canvas = document.createElement('canvas');
-          canvas.width = img.width;
-          canvas.height = img.height;
-          const ctx = canvas.getContext('2d');
-          ctx.drawImage(img, 0, 0);
-          clipboardBlob = await new Promise(resolve => canvas.toBlob(resolve, 'image/png'));
-        } catch {
-          // 如果轉換失敗，使用原始 blob
-          clipboardBlob = blob;
-        }
-      }
-      
-      // 寫入剪貼簿
-      await navigator.clipboard.write([
-        new ClipboardItem({
-          'image/png': clipboardBlob
-        })
-      ]);
-      
-      // 成功後關閉選單並移除焦點
-      closeMenu();
-      menuButton.blur();
-    } catch (error) {
-      console.error('複製錯誤:', error);
-      
-      // Notion iframe 可能無法複製，嘗試複製 URL 作為備用
-      try {
-        await navigator.clipboard.writeText(url);
-        alert("此環境不支援圖片複製（如 Notion iframe），已複製圖片網址。\n建議用【另存圖片】功能。");
-      } catch {
-        alert("複製失敗。此環境可能限制了剪貼簿存取。\n建議改用【另存圖片】或【開啟圖片】功能。");
-      }
-    }
-  }
-
   function toggleMenu() {
     const isOpen = menu.classList.contains("open");
     menu.classList.toggle("open", !isOpen);
@@ -356,7 +412,6 @@ function renderThumbnail(album, images) {
   }
 
   function closeMenu() {
-    // 先移除焦點避免 aria-hidden 警告
     if (document.activeElement && menu.contains(document.activeElement)) {
       document.activeElement.blur();
     }
@@ -369,11 +424,13 @@ function renderThumbnail(album, images) {
     toggleMenu();
   });
 
-  document.addEventListener("click", () => {
-    closeMenu();
+  mainContainer.addEventListener("click", (event) => {
+    if (!menu.contains(event.target) && !menuButton.contains(event.target)) {
+      closeMenu();
+    }
   });
 
-  document.addEventListener("keydown", (event) => {
+  mainContainer.addEventListener("keydown", (event) => {
     if (event.key === "Escape") {
       closeMenu();
     }

@@ -413,6 +413,7 @@ async function deleteImage(image) {
 
   await supabase.storage.from(BUCKET).remove([image.path]);
   await loadImages();
+  updateEmbed();
 }
 
 async function deleteAlbum(albumId) {
@@ -624,8 +625,12 @@ ui.signInBtn.addEventListener("click", async () => {
 
 ui.signOutBtn.addEventListener("click", async () => {
   await supabase.auth.signOut();
+  state.album = null;
+  state.images = [];
   await refreshAuth();
   await loadAlbums();
+  await loadImages();
+  updateEmbed();
 });
 
 ui.newAlbumBtn.addEventListener("click", createAlbum);
