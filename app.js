@@ -273,11 +273,18 @@ function renderImages() {
     input.addEventListener("change", () => updateCaption(image.id, input.value));
 
     const actions = document.createElement("div");
-    // 匹名和登入用戶都可以刪除相片
+    // 匿名和登入用戶都可以刪除相片
     if (state.album) {
       const remove = document.createElement("button");
       remove.className = "btn ghost";
-      remove.textContent = "×";
+      remove.textContent = "✕";
+      remove.style.fontSize = "18px";
+      remove.style.width = "32px";
+      remove.style.height = "32px";
+      remove.style.padding = "0";
+      remove.style.display = "flex";
+      remove.style.alignItems = "center";
+      remove.style.justifyContent = "center";
       remove.addEventListener("click", () => deleteImage(image));
       actions.appendChild(remove);
     }
