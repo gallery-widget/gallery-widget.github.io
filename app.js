@@ -36,6 +36,7 @@ const ui = {
   signOutBtn: document.getElementById("signOutBtn"),
   userBadge: document.getElementById("userBadge"),
   albumList: document.getElementById("albumList"),
+  dropzone: document.getElementById("dropzone"),
   fileInput: document.getElementById("fileInput"),
   uploadLog: document.getElementById("uploadLog"),
   embedCode: document.getElementById("embedCode"),
@@ -703,6 +704,43 @@ ui.signOutBtn.addEventListener("click", async () => {
 });
 
 ui.fileInput.addEventListener("change", (event) => uploadImages([...event.target.files]));
+
+// 拖拽上傳功能
+ui.dropzone.addEventListener("dragover", (e) => {
+  e.preventDefault();
+  e.stopPropagation();
+  ui.dropzone.style.background = "rgba(249, 115, 22, 0.2)";
+  ui.dropzone.style.borderColor = "var(--accent)";
+});
+
+ui.dropzone.addEventListener("dragleave", (e) => {
+  e.preventDefault();
+  e.stopPropagation();
+  ui.dropzone.style.background = "";
+  ui.dropzone.style.borderColor = "";
+});
+
+ui.dropzone.addEventListener("drop", (e) => {
+  e.preventDefault();
+  e.stopPropagation();
+  ui.dropzone.style.background = "";
+  ui.dropzone.style.borderColor = "";
+  
+  const files = [...e.dataTransfer.files].filter(file => file.type.startsWith("image/"));
+  if (files.length > 0) {
+    uploadImages(files);
+  }
+});
+
+// 阻止整個頁面的拖拽默認行為（防止拖拽圖片時打開新標籤頁）
+document.addEventListener("dragover", (e) => {
+  e.preventDefault();
+});
+
+document.addEventListener("drop", (e) => {
+  e.preventDefault();
+});
+
 ui.themeSelect.addEventListener("change", updateSettings);
 ui.addNewSelect.addEventListener("change", updateSettings);
 ui.embedCode.addEventListener("click", () => ui.embedCode.select());
