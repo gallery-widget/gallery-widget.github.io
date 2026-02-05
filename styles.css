@@ -562,10 +562,9 @@ h2, h3 {
   border-radius: 0;
 }
 
-.thumbnail {
+.thumbnail-bar .thumbnail {
   height: 60px;
   width: auto;
-  min-width: 60px;
   object-fit: contain;
   cursor: pointer;
   opacity: 0.5;
@@ -575,7 +574,7 @@ h2, h3 {
   border: 2px solid transparent;
 }
 
-.thumbnail.active {
+.thumbnail-bar .thumbnail.active {
   opacity: 1;
   border-color: white;
 }
