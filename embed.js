@@ -441,7 +441,7 @@ function renderThumbnail(album, images) {
     }
   });
   
-  // 辅助函数：平滑滚动缩略图条到选中位置
+  // 辅助函数：平滑滚动缩略图条到选中位置（不触发页面滚动）
   const scrollThumbBarToIndex = (index) => {
     const thumb = thumbBar.querySelector(`[data-index="${index}"]`);
     if (!thumb) return;
@@ -449,13 +449,12 @@ function renderThumbnail(album, images) {
     const thumbLeft = thumb.offsetLeft;
     const thumbWidth = thumb.offsetWidth;
     const barWidth = thumbBar.clientWidth;
-    const barScrollLeft = thumbBar.scrollLeft;
     
     // 计算要滚动到的位置，使缩图在中央
     const targetScroll = thumbLeft + thumbWidth / 2 - barWidth / 2;
     
-    // 使用 smooth 滚动（需要 CSS scroll-behavior: smooth）
-    thumbBar.scroll({ left: targetScroll, behavior: "smooth" });
+    // 直接设置 scrollLeft，CSS 的 scroll-behavior: smooth 会自动平滑过渡
+    thumbBar.scrollLeft = targetScroll;
   };
   
   images.forEach((image, i) => {
