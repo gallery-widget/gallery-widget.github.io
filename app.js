@@ -262,7 +262,6 @@ async function createAlbum(title) {
   ui.addNewSelect.value = data.add_new_first ? "first" : "last";
   await loadImages();
   updateEmbed();
-  await loadAlbums();
   return data;
 }
 
@@ -667,6 +666,7 @@ async function uploadImages(files) {
   }
 
   await loadImages();
+  await loadAlbums();
   updateEmbed();
   setStatus("上傳完成。");
 }
