@@ -170,8 +170,9 @@ async function createAlbum() {
   ui.addNewSelect.value = data.add_new_first ? "first" : "last";
   await loadImages();
   updateEmbed();
-  await loadAlbums();
   setStatus("相簿已建立，請上傳圖片。");
+  // 创建后需要刷新相簿列表
+  await loadAlbums();
 }
 
 async function loadAlbum(albumId) {
@@ -193,6 +194,7 @@ async function loadAlbum(albumId) {
   ui.addNewSelect.value = data.add_new_first ? "first" : "last";
   await loadImages();
   updateEmbed();
+  // 加载相簿时重绘相簿列表以更新高亮状态
   await loadAlbums();
 }
 
@@ -439,6 +441,7 @@ async function updateSettings() {
 
   state.album = { ...state.album, ...payload };
   updateEmbed();
+  // 更新設定時刷新相簿列表(因為標題可能有改變)
   await loadAlbums();
 }
 

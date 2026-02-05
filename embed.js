@@ -7,10 +7,7 @@ const BUCKET = "album";
 const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
 const ui = {
-  title: document.getElementById("embedTitle"),
-  meta: document.getElementById("embedMeta"),
   grid: document.getElementById("embedGrid"),
-  header: document.getElementById("embedHeader"),
 };
 
 function getAlbumId() {
@@ -30,8 +27,7 @@ async function loadAlbum(albumId) {
     return;
   }
 
-  ui.title.textContent = album.title || "Gallery";
-  ui.meta.textContent = `主題: ${album.theme === 'slideshow' ? '幻燈片' : '縮略圖'}`;
+
   const bgColor = album.background_color || "#0c1117";
   document.body.style.background = bgColor;
   ui.grid.className = `embed-grid ${album.theme || "slideshow"}`;
@@ -57,20 +53,40 @@ async function loadAlbum(albumId) {
   ui.grid.innerHTML = "";
   
   if (theme === "slideshow") {
-    renderSlideshow(images);
+    renderSlideshow(album, images);
   } else if (theme === "thumbnail") {
-    renderThumbnail(images);
+    renderThumbnail(album, images);
   }
 }
 
-function renderSlideshow(images) {
+function renderSlideshow(album, images) {
   const container = document.createElement("div");
   container.className = "slideshow-container";
+  
+  const imageWrapper = document.createElement("div");
+  imageWrapper.className = "slideshow-image-wrapper";
   
   const mainImage = document.createElement("img");
   mainImage.className = "slideshow-main";
   mainImage.src = supabase.storage.from(BUCKET).getPublicUrl(images[0].path).data.publicUrl;
   mainImage.alt = images[0].caption || "";
+  
+  const overlay = document.createElement("div");
+  overlay.className = "slideshow-overlay";
+  
+  const title = document.createElement("h1");
+  title.className = "slideshow-title";
+  title.textContent = album.title || "Gallery";
+  
+  const caption = document.createElement("p");
+  caption.className = "slideshow-caption";
+  caption.textContent = images[0].caption || "";
+  
+  overlay.appendChild(title);
+  overlay.appendChild(caption);
+  
+  imageWrapper.appendChild(mainImage);
+  imageWrapper.appendChild(overlay);
   
   const prevBtn = document.createElement("button");
   prevBtn.className = "slideshow-btn prev";
@@ -96,6 +112,7 @@ function renderSlideshow(images) {
     currentIndex = index;
     mainImage.src = supabase.storage.from(BUCKET).getPublicUrl(images[index].path).data.publicUrl;
     mainImage.alt = images[index].caption || "";
+    caption.textContent = images[index].caption || "";
     
     dots.querySelectorAll(".dot").forEach((dot, i) => {
       dot.classList.toggle("active", i === index);
@@ -112,21 +129,47 @@ function renderSlideshow(images) {
     goToSlide(currentIndex);
   });
   
+  container.appendChild(imageWrapper);
   container.appendChild(prevBtn);
-  container.appendChild(mainImage);
   container.appendChild(nextBtn);
   container.appendChild(dots);
   ui.grid.appendChild(container);
 }
 
-function renderThumbnail(images) {
-  const container = document.createElement("div");
-  container.className = "thumbnail-container";
+function renderThumbnail(album, images) {
+  // 大图容器
+  const mainContainer = document.createElement("div");
+  mainContainer.className = "thumbnail-main-container";
+  
+  const imageWrapper = document.createElement("div");
+  imageWrapper.className = "thumbnail-image-wrapper";
   
   const mainImage = document.createElement("img");
   mainImage.className = "thumbnail-main";
   mainImage.src = supabase.storage.from(BUCKET).getPublicUrl(images[0].path).data.publicUrl;
   mainImage.alt = images[0].caption || "";
+  
+  const overlay = document.createElement("div");
+  overlay.className = "thumbnail-overlay";
+  
+  const title = document.createElement("h1");
+  title.className = "thumbnail-title";
+  title.textContent = album.title || "Gallery";
+  
+  const caption = document.createElement("p");
+  caption.className = "thumbnail-caption";
+  caption.textContent = images[0].caption || "";
+  
+  overlay.appendChild(title);
+  overlay.appendChild(caption);
+  
+  imageWrapper.appendChild(mainImage);
+  imageWrapper.appendChild(overlay);
+  mainContainer.appendChild(imageWrapper);
+  
+  // 缩略图容器
+  const thumbContainer = document.createElement("div");
+  thumbContainer.className = "thumbnail-bar-container";
   
   const thumbBar = document.createElement("div");
   thumbBar.className = "thumbnail-bar";
@@ -139,6 +182,7 @@ function renderThumbnail(images) {
     thumb.addEventListener("click", () => {
       mainImage.src = supabase.storage.from(BUCKET).getPublicUrl(image.path).data.publicUrl;
       mainImage.alt = image.caption || "";
+      caption.textContent = image.caption || "";
       thumbBar.querySelectorAll(".thumbnail").forEach((t, j) => {
         t.classList.toggle("active", j === i);
       });
@@ -146,9 +190,10 @@ function renderThumbnail(images) {
     thumbBar.appendChild(thumb);
   });
   
-  container.appendChild(mainImage);
-  container.appendChild(thumbBar);
-  ui.grid.appendChild(container);
+  thumbContainer.appendChild(thumbBar);
+  
+  ui.grid.appendChild(mainContainer);
+  ui.grid.appendChild(thumbContainer);
 }
 
 const albumId = getAlbumId();

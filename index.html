@@ -102,8 +102,11 @@
             </select>
           </div>
           <div>
-            <label class="label">背景顏色 (支援 rgba)</label>
-            <input id="bgColor" class="field" type="text" value="#101828" placeholder="#hex 或 rgba(r,g,b,a)" />
+            <label class="label">背景顏色</label>
+            <div style="display: flex; gap: 8px; align-items: center;">
+              <input id="bgColor" class="field" type="text" value="#101828" placeholder="例: rgba(16,24,40,0.8)" style="flex: 1;" />
+              <span class="muted" style="font-size: 11px;">支援 #hex 或 rgba(r,g,b,a)</span>
+            </div>
           </div>
           <div>
             <label class="label">新圖片位置</label>
