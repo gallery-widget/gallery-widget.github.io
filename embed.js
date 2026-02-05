@@ -158,6 +158,9 @@ function renderThumbnail(album, images) {
   
   const overlay = document.createElement("div");
   overlay.className = "thumbnail-overlay";
+
+  const overlayLeft = document.createElement("div");
+  overlayLeft.className = "thumbnail-overlay-left";
   
   const title = document.createElement("h1");
   title.className = "thumbnail-title";
@@ -166,9 +169,49 @@ function renderThumbnail(album, images) {
   const caption = document.createElement("p");
   caption.className = "thumbnail-caption";
   caption.textContent = images[0].caption || "";
-  
-  overlay.appendChild(title);
-  overlay.appendChild(caption);
+
+  overlayLeft.appendChild(title);
+  overlayLeft.appendChild(caption);
+
+  const overlayRight = document.createElement("div");
+  overlayRight.className = "thumbnail-overlay-right";
+
+  const menuButton = document.createElement("button");
+  menuButton.className = "thumbnail-menu-btn";
+  menuButton.type = "button";
+  menuButton.setAttribute("aria-label", "開啟選單");
+  menuButton.textContent = "⋯";
+
+  const menu = document.createElement("div");
+  menu.className = "thumbnail-menu";
+  menu.setAttribute("role", "menu");
+  menu.setAttribute("aria-hidden", "true");
+
+  const menuItems = [
+    { label: "全螢幕", action: () => toggleFullscreen() },
+    { label: "開啟圖片", action: () => openCurrentImage() },
+    { label: "另存圖片", action: () => downloadCurrentImage() },
+    { label: "複製圖片", action: () => copyCurrentImage() },
+    { label: "建立你的相簿", action: () => openBuilder() },
+  ];
+
+  menuItems.forEach((item) => {
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = "thumbnail-menu-item";
+    btn.textContent = item.label;
+    btn.addEventListener("click", () => {
+      item.action();
+      closeMenu();
+    });
+    menu.appendChild(btn);
+  });
+
+  overlayRight.appendChild(menuButton);
+  overlayRight.appendChild(menu);
+
+  overlay.appendChild(overlayLeft);
+  overlay.appendChild(overlayRight);
   
   imageWrapper.appendChild(mainImage);
   imageWrapper.appendChild(overlay);
@@ -182,6 +225,85 @@ function renderThumbnail(album, images) {
   thumbBar.className = "thumbnail-bar";
   
   let currentIndex = 0;
+
+  function getCurrentImage() {
+    return images[currentIndex];
+  }
+
+  function openBuilder() {
+    window.open("https://ebluvu.github.io/gallery-widget-v1/", "_blank", "noopener");
+  }
+
+  function toggleFullscreen() {
+    if (!document.fullscreenElement) {
+      document.documentElement.requestFullscreen().catch(() => {
+        alert("此瀏覽器不支援全螢幕。");
+      });
+      return;
+    }
+    document.exitFullscreen().catch(() => {
+      alert("無法退出全螢幕。");
+    });
+  }
+
+  function openCurrentImage() {
+    const image = getCurrentImage();
+    const url = supabase.storage.from(BUCKET).getPublicUrl(image.path).data.publicUrl;
+    window.open(url, "_blank", "noopener");
+  }
+
+  function downloadCurrentImage() {
+    const image = getCurrentImage();
+    const url = supabase.storage.from(BUCKET).getPublicUrl(image.path).data.publicUrl;
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = image.path.split("/").pop() || "image";
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+  }
+
+  async function copyCurrentImage() {
+    const image = getCurrentImage();
+    const url = supabase.storage.from(BUCKET).getPublicUrl(image.path).data.publicUrl;
+    if (!navigator.clipboard || !window.ClipboardItem) {
+      alert("此瀏覽器不支援複製圖片。");
+      return;
+    }
+    try {
+      const response = await fetch(url, { mode: "cors" });
+      const blob = await response.blob();
+      await navigator.clipboard.write([new ClipboardItem({ [blob.type]: blob })]);
+    } catch (error) {
+      alert("複製失敗，請手動下載。");
+    }
+  }
+
+  function toggleMenu() {
+    const isOpen = menu.classList.contains("open");
+    menu.classList.toggle("open", !isOpen);
+    menu.setAttribute("aria-hidden", isOpen ? "true" : "false");
+  }
+
+  function closeMenu() {
+    menu.classList.remove("open");
+    menu.setAttribute("aria-hidden", "true");
+  }
+
+  menuButton.addEventListener("click", (event) => {
+    event.stopPropagation();
+    toggleMenu();
+  });
+
+  document.addEventListener("click", () => {
+    closeMenu();
+  });
+
+  document.addEventListener("keydown", (event) => {
+    if (event.key === "Escape") {
+      closeMenu();
+    }
+  });
   
   images.forEach((image, i) => {
     const thumb = document.createElement("img");
