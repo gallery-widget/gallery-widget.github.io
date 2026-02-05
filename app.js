@@ -768,6 +768,7 @@ supabase.auth.onAuthStateChange((event, session) => {
     state.user = session?.user || null;
     renderAuth();
     loadAlbums();
+    updateEmbed();
   }
 });
 
