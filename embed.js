@@ -396,6 +396,25 @@ function renderThumbnail(album, images) {
     thumbBar.appendChild(thumb);
   });
   
+  // 檢測是否有滾動條，動態改變對齐方式
+  const updateThumbBarAlignment = () => {
+    const hasScroll = thumbBar.scrollWidth > thumbBar.clientWidth;
+    if (hasScroll) {
+      thumbBar.style.justifyContent = "flex-start";
+    } else {
+      thumbBar.style.justifyContent = "center";
+    }
+  };
+  
+  // 使用 ResizeObserver 監視寬度變化（便窗口縮放時跟著改變）
+  const resizeObserver = new ResizeObserver(() => {
+    updateThumbBarAlignment();
+  });
+  resizeObserver.observe(thumbBar);
+  
+  // 立即檢查一次
+  setTimeout(updateThumbBarAlignment, 0);
+  
   // 點擊大圖自動輪替到下一張
   mainImage.addEventListener("click", () => {
     currentIndex = (currentIndex + 1) % images.length;

@@ -26,6 +26,32 @@ body {
   position: relative;
 }
 
+/* 網頁滾動條樣式 */
+html {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 255, 255, 0.3) transparent;
+}
+
+html::-webkit-scrollbar {
+  width: 6px;
+}
+
+html::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+html::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.2);
+  border-radius: 3px;
+  opacity: 0.3;
+  transition: opacity 0.3s ease, background 0.3s ease;
+}
+
+html::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.5);
+  opacity: 1;
+}
+
 .bg {
   position: fixed;
   inset: 0;
@@ -603,7 +629,7 @@ h2, h3 {
   padding: 0 8px;
   scrollbar-width: thin;
   scrollbar-color: rgba(255, 255, 255, 0.3) transparent;
-  justify-content: flex-start;
+  justify-content: center;
   scroll-behavior: smooth;
 }
 
