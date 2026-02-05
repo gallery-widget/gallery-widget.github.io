@@ -26,8 +26,11 @@ const ui = {
   uploadLog: document.getElementById("uploadLog"),
   embedCode: document.getElementById("embedCode"),
   shareLink: document.getElementById("shareLink"),
+  embedPreview: document.getElementById("embedPreview"),
   themeSelect: document.getElementById("themeSelect"),
   bgColor: document.getElementById("bgColor"),
+  bgOpacity: document.getElementById("bgOpacity"),
+  opacityValue: document.getElementById("opacityValue"),
   addNewSelect: document.getElementById("addNewSelect"),
   imageList: document.getElementById("imageList"),
   status: document.getElementById("status"),
@@ -41,6 +44,34 @@ function logUpload(message) {
   const p = document.createElement("p");
   p.textContent = message;
   ui.uploadLog.prepend(p);
+}
+
+function hexToRgba(hex, opacity) {
+  const r = parseInt(hex.slice(1, 3), 16);
+  const g = parseInt(hex.slice(3, 5), 16);
+  const b = parseInt(hex.slice(5, 7), 16);
+  return `rgba(${r}, ${g}, ${b}, ${opacity / 100})`;
+}
+
+function rgbaToHexAndOpacity(rgba) {
+  if (!rgba || !rgba.startsWith('rgba')) {
+    return { hex: rgba || '#101828', opacity: 100 };
+  }
+  const match = rgba.match(/rgba?\((\d+),\s*(\d+),\s*(\d+)(?:,\s*([\d.]+))?\)/);
+  if (!match) {
+    return { hex: '#101828', opacity: 100 };
+  }
+  const r = parseInt(match[1]).toString(16).padStart(2, '0');
+  const g = parseInt(match[2]).toString(16).padStart(2, '0');
+  const b = parseInt(match[3]).toString(16).padStart(2, '0');
+  const opacity = match[4] ? Math.round(parseFloat(match[4]) * 100) : 100;
+  return { hex: `#${r}${g}${b}`, opacity };
+}
+
+function getCurrentBackgroundColor() {
+  const hex = ui.bgColor.value;
+  const opacity = ui.bgOpacity.value;
+  return hexToRgba(hex, opacity);
 }
 
 function newId() {
@@ -74,11 +105,11 @@ function renderAuth() {
   if (state.user) {
     ui.signInForm.classList.add("hidden");
     ui.signOutBtn.classList.remove("hidden");
-    ui.userBadge.textContent = state.user.email || "Signed in";
+    ui.userBadge.textContent = state.user.email || "已登入";
   } else {
     ui.signInForm.classList.remove("hidden");
     ui.signOutBtn.classList.add("hidden");
-    ui.userBadge.textContent = "Not signed in";
+    ui.userBadge.textContent = "未登入";
   }
 }
 
@@ -112,24 +143,46 @@ async function loadAlbums() {
   }
 
   data.forEach((album) => {
+    const item = document.createElement("div");
+    item.style.display = "flex";
+    item.style.gap = "8px";
+    item.style.alignItems = "center";
+    
     const btn = document.createElement("button");
-    btn.textContent = album.title || "Untitled";
+    btn.textContent = album.title || "未命名";
+    btn.style.flex = "1";
     if (state.album && state.album.id === album.id) {
       btn.classList.add("active");
     }
     btn.addEventListener("click", () => loadAlbum(album.id));
-    ui.albumList.appendChild(btn);
+    
+    const deleteBtn = document.createElement("button");
+    deleteBtn.textContent = "×";
+    deleteBtn.className = "btn ghost";
+    deleteBtn.style.padding = "8px 12px";
+    deleteBtn.style.fontSize = "18px";
+    deleteBtn.style.lineHeight = "1";
+    deleteBtn.addEventListener("click", async (e) => {
+      e.stopPropagation();
+      if (confirm(`確定要刪除相簿「${album.title || '未命名'}」嗎？這會刪除所有圖片。`)) {
+        await deleteAlbum(album.id);
+      }
+    });
+    
+    item.appendChild(btn);
+    item.appendChild(deleteBtn);
+    ui.albumList.appendChild(item);
   });
 }
 
 async function createAlbum() {
-  const title = ui.albumTitle.value.trim() || "Untitled";
+  const title = ui.albumTitle.value.trim() || "未命名";
   const payload = {
     id: newId(),
     title,
     owner_id: state.user ? state.user.id : null,
-    theme: "grid",
-    background_color: "#101828",
+    theme: "slideshow",
+    background_color: getCurrentBackgroundColor(),
     add_new_first: false,
   };
 
@@ -146,13 +199,16 @@ async function createAlbum() {
 
   state.album = data;
   ui.albumTitle.value = data.title || "";
-  ui.themeSelect.value = data.theme || "grid";
-  ui.bgColor.value = data.background_color || "#101828";
+  ui.themeSelect.value = data.theme || "slideshow";
+  const { hex, opacity } = rgbaToHexAndOpacity(data.background_color);
+  ui.bgColor.value = hex;
+  ui.bgOpacity.value = opacity;
+  ui.opacityValue.textContent = `${opacity}%`;
   ui.addNewSelect.value = data.add_new_first ? "first" : "last";
   await loadImages();
   updateEmbed();
   await loadAlbums();
-  setStatus("Album created. Upload images to continue.");
+  setStatus("相簿已建立，請上傳圖片。");
 }
 
 async function loadAlbum(albumId) {
@@ -169,8 +225,11 @@ async function loadAlbum(albumId) {
 
   state.album = data;
   ui.albumTitle.value = data.title || "";
-  ui.themeSelect.value = data.theme || "grid";
-  ui.bgColor.value = data.background_color || "#101828";
+  ui.themeSelect.value = data.theme || "slideshow";
+  const { hex, opacity } = rgbaToHexAndOpacity(data.background_color);
+  ui.bgColor.value = hex;
+  ui.bgOpacity.value = opacity;
+  ui.opacityValue.textContent = `${opacity}%`;
   ui.addNewSelect.value = data.add_new_first ? "first" : "last";
   await loadImages();
   updateEmbed();
@@ -204,14 +263,17 @@ function renderImages() {
   if (!state.images.length) {
     const empty = document.createElement("div");
     empty.className = "muted";
-    empty.textContent = "No images yet.";
+    empty.textContent = "尚無圖片。";
     ui.imageList.appendChild(empty);
     return;
   }
 
-  state.images.forEach((image) => {
+  state.images.forEach((image, index) => {
     const card = document.createElement("div");
     card.className = "image-card";
+    card.draggable = true;
+    card.dataset.imageId = image.id;
+    card.dataset.index = index;
 
     const img = document.createElement("img");
     img.src = supabase.storage.from(BUCKET).getPublicUrl(image.path).data.publicUrl;
@@ -219,23 +281,87 @@ function renderImages() {
     const input = document.createElement("input");
     input.className = "field";
     input.value = image.caption || "";
-    input.placeholder = "Caption";
+    input.placeholder = "圖片說明";
     input.addEventListener("change", () => updateCaption(image.id, input.value));
 
     const actions = document.createElement("div");
-    if (state.user && state.album && state.album.owner_id === state.user.id) {
+    // 匹名和登入用戶都可以刪除相片
+    if (state.album) {
       const remove = document.createElement("button");
       remove.className = "btn ghost";
-      remove.textContent = "Delete";
+      remove.textContent = "刪除";
       remove.addEventListener("click", () => deleteImage(image));
       actions.appendChild(remove);
     }
+
+    // 拖拽事件
+    card.addEventListener("dragstart", handleDragStart);
+    card.addEventListener("dragover", handleDragOver);
+    card.addEventListener("drop", handleDrop);
+    card.addEventListener("dragend", handleDragEnd);
 
     card.appendChild(img);
     card.appendChild(input);
     card.appendChild(actions);
     ui.imageList.appendChild(card);
   });
+}
+
+let draggedElement = null;
+
+function handleDragStart(e) {
+  draggedElement = e.currentTarget;
+  e.currentTarget.style.opacity = "0.5";
+  e.dataTransfer.effectAllowed = "move";
+}
+
+function handleDragOver(e) {
+  if (e.preventDefault) {
+    e.preventDefault();
+  }
+  e.dataTransfer.dropEffect = "move";
+  return false;
+}
+
+function handleDrop(e) {
+  if (e.stopPropagation) {
+    e.stopPropagation();
+  }
+
+  if (draggedElement !== e.currentTarget) {
+    const fromIndex = parseInt(draggedElement.dataset.index);
+    const toIndex = parseInt(e.currentTarget.dataset.index);
+    
+    // 重新排序state.images数组
+    const [movedItem] = state.images.splice(fromIndex, 1);
+    state.images.splice(toIndex, 0, movedItem);
+    
+    // 更新数据库
+    updateImageOrder();
+    
+    // 重新渲染
+    renderImages();
+  }
+
+  return false;
+}
+
+function handleDragEnd(e) {
+  e.currentTarget.style.opacity = "";
+}
+
+async function updateImageOrder() {
+  const updates = state.images.map((image, index) => ({
+    id: image.id,
+    sort_order: index,
+  }));
+
+  for (const update of updates) {
+    await supabase
+      .from("images")
+      .update({ sort_order: update.sort_order })
+      .eq("id", update.id);
+  }
 }
 
 async function updateCaption(imageId, caption) {
@@ -264,15 +390,63 @@ async function deleteImage(image) {
   await loadImages();
 }
 
+async function deleteAlbum(albumId) {
+  // 先獲取所有圖片路徑
+  const { data: images } = await supabase
+    .from("images")
+    .select("path")
+    .eq("album_id", albumId);
+
+  // 刪除所有圖片記錄
+  const { error: deleteImagesError } = await supabase
+    .from("images")
+    .delete()
+    .eq("album_id", albumId);
+
+  if (deleteImagesError) {
+    setStatus(deleteImagesError.message);
+    return;
+  }
+
+  // 刪除儲存的圖片文件
+  if (images && images.length > 0) {
+    const paths = images.map(img => img.path);
+    await supabase.storage.from(BUCKET).remove(paths);
+  }
+
+  // 刪除相簿
+  const { error: deleteAlbumError } = await supabase
+    .from("albums")
+    .delete()
+    .eq("id", albumId);
+
+  if (deleteAlbumError) {
+    setStatus(deleteAlbumError.message);
+    return;
+  }
+
+  // 如果刪除的是當前相簿，清空狀態
+  if (state.album && state.album.id === albumId) {
+    state.album = null;
+    state.images = [];
+    ui.albumTitle.value = "";
+    ui.imageList.innerHTML = "";
+    updateEmbed();
+  }
+
+  setStatus("相簿已刪除。");
+  await loadAlbums();
+}
+
 async function updateSettings() {
   if (!state.album) {
     return;
   }
 
   const payload = {
-    title: ui.albumTitle.value.trim() || "Untitled",
+    title: ui.albumTitle.value.trim() || "未命名",
     theme: ui.themeSelect.value,
-    background_color: ui.bgColor.value,
+    background_color: getCurrentBackgroundColor(),
     add_new_first: ui.addNewSelect.value === "first",
   };
 
@@ -296,11 +470,13 @@ function updateEmbed() {
   if (!url) {
     ui.embedCode.value = "";
     ui.shareLink.value = "";
+    ui.embedPreview.src = "";
     return;
   }
 
   ui.shareLink.value = url;
   ui.embedCode.value = `<iframe src="${url}" width="700" height="420" frameborder="0" allowfullscreen></iframe>`;
+  ui.embedPreview.src = url;
 }
 
 async function prepareImage(file) {
@@ -328,7 +504,7 @@ async function prepareImage(file) {
 
 async function uploadImages(files) {
   if (!state.album) {
-    setStatus("Create an album first.");
+    setStatus("請先建立相簿。");
     return;
   }
 
@@ -341,11 +517,11 @@ async function uploadImages(files) {
   for (let i = 0; i < files.length; i += 1) {
     const file = files[i];
     if (!file.type.startsWith("image/")) {
-      logUpload(`Skip ${file.name}`);
+      logUpload(`略過 ${file.name}`);
       continue;
     }
 
-    setStatus(`Processing ${file.name}...`);
+    setStatus(`處理中 ${file.name}...`);
     const { blob, width, height } = await prepareImage(file);
     const path = `${state.album.id}/${newId()}.jpg`;
 
@@ -376,17 +552,17 @@ async function uploadImages(files) {
       return;
     }
 
-    logUpload(`Uploaded ${file.name}`);
+    logUpload(`已上傳 ${file.name}`);
   }
 
   await loadImages();
-  setStatus("Upload complete.");
+  setStatus("上傳完成。");
 }
 
 ui.signInBtn.addEventListener("click", async () => {
   const email = ui.emailInput.value.trim();
   if (!email) {
-    setStatus("Please enter your email");
+    setStatus("請輸入您的電子郵件");
     return;
   }
   
@@ -400,7 +576,7 @@ ui.signInBtn.addEventListener("click", async () => {
   if (error) {
     setStatus(error.message);
   } else {
-    setStatus("Check your email for the magic link!");
+    setStatus("請查收電子郵件中的登入連結！");
     ui.emailInput.value = "";
   }
 });
@@ -416,9 +592,21 @@ ui.fileInput.addEventListener("change", (event) => uploadImages([...event.target
 ui.albumTitle.addEventListener("change", updateSettings);
 ui.themeSelect.addEventListener("change", updateSettings);
 ui.bgColor.addEventListener("change", updateSettings);
+ui.bgOpacity.addEventListener("input", () => {
+  ui.opacityValue.textContent = `${ui.bgOpacity.value}%`;
+  updateSettings();
+});
 ui.addNewSelect.addEventListener("change", updateSettings);
 ui.embedCode.addEventListener("click", () => ui.embedCode.select());
 ui.shareLink.addEventListener("click", () => ui.shareLink.select());
+
+// 預設顏色按鈕
+document.querySelectorAll(".preset-btn").forEach(btn => {
+  btn.addEventListener("click", () => {
+    ui.bgColor.value = btn.dataset.color;
+    updateSettings();
+  });
+});
 
 supabase.auth.onAuthStateChange((event, session) => {
   state.user = session?.user || null;
@@ -428,7 +616,7 @@ supabase.auth.onAuthStateChange((event, session) => {
 
 (async function init() {
   if (!SUPABASE_URL || !SUPABASE_ANON_KEY) {
-    setStatus("Missing Supabase config.");
+    setStatus("缺少 Supabase 設定。");
     return;
   }
   await refreshAuth();

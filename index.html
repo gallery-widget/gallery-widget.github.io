@@ -22,9 +22,9 @@
     <div class="auth">
       <div id="signInForm">
         <input id="emailInput" class="field" type="email" placeholder="your@email.com" style="width:200px" />
-        <button id="signInBtn" class="btn ghost">Send Magic Link</button>
+        <button id="signInBtn" class="btn ghost">發送登入信</button>
       </div>
-      <button id="signOutBtn" class="btn ghost hidden">Logout</button>
+      <button id="signOutBtn" class="btn ghost hidden">登出</button>
       <div id="userBadge" class="badge"></div>
     </div>
   </header>
@@ -32,12 +32,12 @@
   <main class="shell">
     <section class="card">
       <div class="card-head">
-        <h2>Create</h2>
+        <h2>建立相簿</h2>
         <p class="muted">匿名建立相簿後即可嵌入，關閉網站後無法再編輯。</p>
       </div>
       <div class="row">
-        <button id="newAlbumBtn" class="btn primary">New Album</button>
-        <input id="albumTitle" class="field" type="text" placeholder="Album title" />
+        <button id="newAlbumBtn" class="btn primary">建立新相簿</button>
+        <input id="albumTitle" class="field" type="text" placeholder="相簿標題" />
       </div>
       <div id="status" class="status"></div>
     </section>
@@ -45,7 +45,7 @@
     <section class="grid">
       <div class="card">
         <div class="card-head">
-          <h3>Your Albums</h3>
+          <h3>我的相簿</h3>
           <p class="muted">登入後會顯示可編輯的相簿。</p>
         </div>
         <div id="albumList" class="list"></div>
@@ -53,12 +53,12 @@
 
       <div class="card">
         <div class="card-head">
-          <h3>Upload</h3>
+          <h3>上傳圖片</h3>
           <p class="muted">支援多張圖片，上傳後會加入當前相簿。</p>
         </div>
         <label class="dropzone">
           <input id="fileInput" type="file" accept="image/*" multiple />
-          <span>Drop images or click to upload</span>
+          <span>拖曳圖片到此處或點擊上傳</span>
         </label>
         <div id="uploadLog" class="log"></div>
       </div>
@@ -66,17 +66,23 @@
 
     <section class="card">
       <div class="card-head">
-        <h3>Embed & Share</h3>
+        <h3>嵌入與分享</h3>
         <p class="muted">生成 iframe 或直接分享連結。</p>
       </div>
       <div class="row">
         <div>
-          <label class="label">Embed iframe</label>
+          <label class="label">嵌入代碼</label>
           <textarea id="embedCode" class="field mono" rows="3" readonly></textarea>
         </div>
         <div>
-          <label class="label">Public link</label>
+          <label class="label">公開連結</label>
           <textarea id="shareLink" class="field mono" rows="2" readonly></textarea>
+        </div>
+      </div>
+      <div style="margin-top: 1rem;">
+        <label class="label">即時預覽</label>
+        <div style="border: 1px solid #333; border-radius: 8px; overflow: hidden; background: #000;">
+          <iframe id="embedPreview" width="100%" height="420" frameborder="0" style="display: block;"></iframe>
         </div>
       </div>
     </section>
@@ -84,35 +90,53 @@
     <section class="grid">
       <div class="card">
         <div class="card-head">
-          <h3>Settings</h3>
+          <h3>設定</h3>
           <p class="muted">這些設定會套用到嵌入頁面。</p>
         </div>
         <div class="row">
           <div>
-            <label class="label">Theme</label>
+            <label class="label">主題</label>
             <select id="themeSelect" class="field">
-              <option value="grid">Grid</option>
-              <option value="stack">Stack</option>
+              <option value="slideshow">幻燈片</option>
+              <option value="thumbnail">縮略圖</option>
             </select>
           </div>
           <div>
-            <label class="label">Background</label>
+            <label class="label">新圖片位置</label>
+            <select id="addNewSelect" class="field">
+              <option value="last">最後</option>
+              <option value="first">最前</option>
+            </select>
+          </div>
+        </div>
+        <div style="margin-top: 1rem;">
+          <label class="label">背景顏色</label>
+          <div class="preset-colors">
+            <button class="preset-btn" data-color="#0c1117" style="background: #0c1117;" title="深黑"></button>
+            <button class="preset-btn" data-color="#1e293b" style="background: #1e293b;" title="藍黑"></button>
+            <button class="preset-btn" data-color="#1f2937" style="background: #1f2937;" title="灰黑"></button>
+            <button class="preset-btn" data-color="#18181b" style="background: #18181b;" title="純黑"></button>
+            <button class="preset-btn" data-color="#ffffff" style="background: #ffffff;" title="白色"></button>
+            <button class="preset-btn" data-color="#f3f4f6" style="background: #f3f4f6;" title="淺灰"></button>
+          </div>
+        </div>
+        <div class="row" style="margin-top: 0.5rem;">
+          <div>
+            <label class="label">自訂顏色</label>
             <input id="bgColor" class="field" type="color" value="#101828" />
           </div>
           <div>
-            <label class="label">Add new images</label>
-            <select id="addNewSelect" class="field">
-              <option value="last">Last</option>
-              <option value="first">First</option>
-            </select>
+            <label class="label">透明度 <span id="opacityValue">100%</span></label>
+            <input id="bgOpacity" class="field" type="range" min="0" max="100" value="100" />
+          </div>
           </div>
         </div>
       </div>
 
       <div class="card">
         <div class="card-head">
-          <h3>Images</h3>
-          <p class="muted">可編輯 caption，登入時可刪除。</p>
+          <h3>圖片</h3>
+          <p class="muted">可編輯說明文字，可刪除圖片。</p>
         </div>
         <div id="imageList" class="images"></div>
       </div>
