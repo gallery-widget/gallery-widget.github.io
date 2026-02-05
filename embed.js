@@ -256,30 +256,37 @@ function renderThumbnail(album, images) {
     const image = getCurrentImage();
     const url = supabase.storage.from(BUCKET).getPublicUrl(image.path).data.publicUrl;
     
-    // 使用 fetch 获取 blob 绕过跨域限制
-    fetch(url)
-      .then(response => {
-        if (!response.ok) {
-          throw new Error('下載失敗');
-        }
-        return response.blob();
-      })
-      .then(blob => {
-        const blobUrl = URL.createObjectURL(blob);
-        const link = document.createElement("a");
-        link.href = blobUrl;
-        link.download = image.path.split("/").pop() || "image.jpg";
-        document.body.appendChild(link);
-        link.click();
-        link.remove();
-        URL.revokeObjectURL(blobUrl);
-      })
-      .catch(error => {
-        console.error('下載錯誤:', error);
-        alert("下載失敗，請在新分頁開啟圖片後手動儲存。");
-        // 備用方案：直接開啟圖片
-        window.open(url, "_blank", "noopener");
-      });
+    // 嘗試直接下載，部分環境（如 Notion iframe）可能需要在新視窗中下載
+    try {
+      fetch(url)
+        .then(response => {
+          if (!response.ok) {
+            throw new Error('下載失敗');
+          }
+          return response.blob();
+        })
+        .then(blob => {
+          const blobUrl = URL.createObjectURL(blob);
+          const link = document.createElement("a");
+          link.href = blobUrl;
+          link.download = image.path.split("/").pop() || "image.jpg";
+          // 嘗試直接點擊下載
+          document.body.appendChild(link);
+          link.click();
+          link.remove();
+          URL.revokeObjectURL(blobUrl);
+        })
+        .catch(error => {
+          console.error('下載錯誤:', error);
+          // Notion iframe 可能無法直接下載，改為新視窗開啟
+          window.open(url, "_blank", "noopener");
+          alert("若無法下載，請在新視窗中右鍵點擊圖片選擇另存新檔。");
+        });
+    } catch (error) {
+      console.error('下載失敗:', error);
+      // 備用：直接在新視窗開啟
+      window.open(url, "_blank", "noopener");
+    }
   }
 
   async function copyCurrentImage() {
@@ -332,12 +339,12 @@ function renderThumbnail(album, images) {
     } catch (error) {
       console.error('複製錯誤:', error);
       
-      // Fallback: 複製 URL
+      // Notion iframe 可能無法複製，嘗試複製 URL 作為備用
       try {
         await navigator.clipboard.writeText(url);
-        alert("無法複製圖片，已複製圖片網址到剪貼簿。");
+        alert("此環境不支援圖片複製（如 Notion iframe），已複製圖片網址。\n建議用【另存圖片】功能。");
       } catch {
-        alert("複製失敗。建議改用【另存圖片】或【開啟圖片】功能。");
+        alert("複製失敗。此環境可能限制了剪貼簿存取。\n建議改用【另存圖片】或【開啟圖片】功能。");
       }
     }
   }

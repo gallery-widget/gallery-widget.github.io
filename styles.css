@@ -599,14 +599,16 @@ h2, h3 {
 .thumbnail-bar {
   display: flex;
   overflow-x: auto;
+  overflow-y: hidden;
   padding: 0 8px;
   scrollbar-width: thin;
   scrollbar-color: rgba(255, 255, 255, 0.3) transparent;
-  justify-content: center;
+  justify-content: flex-start;
+  scroll-behavior: smooth;
 }
 
 .thumbnail-bar::-webkit-scrollbar {
-  height: 8px;
+  height: 4px;
 }
 
 .thumbnail-bar::-webkit-scrollbar-track {
@@ -614,8 +616,14 @@ h2, h3 {
 }
 
 .thumbnail-bar::-webkit-scrollbar-thumb {
-  background: rgba(255, 255, 255, 0.3);
-  border-radius: 0;
+  background: rgba(255, 255, 255, 0.4);
+  border-radius: 2px;
+  opacity: 0;
+  transition: opacity 0.3s ease;
+}
+
+.thumbnail-bar:hover::-webkit-scrollbar-thumb {
+  opacity: 1;
 }
 
 .thumbnail-bar .thumbnail {
