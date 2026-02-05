@@ -26,13 +26,6 @@ body {
   position: relative;
 }
 
-/* 網頁滾動條樣式 - 通用所有元素 */
-html,
-body,
-* {
-  scrollbar-color: rgba(255, 255, 255, 0.25) transparent !important;
-}
-
 html::-webkit-scrollbar,
 body::-webkit-scrollbar,
 *::-webkit-scrollbar {
