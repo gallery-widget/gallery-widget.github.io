@@ -26,37 +26,41 @@ function getImageUrl(path, options = {}) {
   return url;
 }
 
-// 先顯示低品質預覽，再切換到高品質版本
+// LQIP：先顯示完整大小但低品質版本，再切換到高品質版本
 function setPreviewImage(imgEl, path, options = {}) {
+  const width = options.width || '1600';
+  
+  // 低品質版本：完整寬度，只是降低品質和用 webp 格式
   const lowUrl = getImageUrl(path, {
     preview: true,
-    width: options.lowWidth || '320',
-    quality: options.lowQuality || '30',
-    format: options.format || 'webp',
+    width: width,
+    quality: '40',
+    format: 'webp',
   });
+  
+  // 高品質版本
   const highUrl = getImageUrl(path, {
     preview: true,
-    width: options.highWidth || '1600',
-    quality: options.highQuality || '85',
-    format: options.format || 'webp',
+    width: width,
+    quality: '85',
   });
 
+  // 如果低高品質 URL 一樣，直接設
   if (lowUrl === highUrl) {
     imgEl.src = highUrl;
-    imgEl.classList.remove('is-loading');
     return;
   }
 
-  imgEl.classList.add('is-loading');
+  // 先立即設低品質版本，讓用戶看到完整大小的低畫質圖
   imgEl.src = lowUrl;
 
+  // 背景載入高品質版本
   const highImg = new Image();
   highImg.onload = () => {
-    imgEl.src = highUrl;
-    imgEl.classList.remove('is-loading');
-  };
-  highImg.onerror = () => {
-    imgEl.classList.remove('is-loading');
+    // 只有在元素還指向低品質版才替換
+    if (imgEl.src === lowUrl) {
+      imgEl.src = highUrl;
+    }
   };
   highImg.src = highUrl;
 }
@@ -235,7 +239,7 @@ function renderSlideshow(album, images) {
   
   const mainImage = document.createElement("img");
   mainImage.className = "slideshow-main";
-  setPreviewImage(mainImage, images[0].path, { highWidth: '1600' });
+  setPreviewImage(mainImage, images[0].path);
   mainImage.alt = images[0].caption || "";
   
   const overlay = document.createElement("div");
@@ -320,7 +324,7 @@ function renderSlideshow(album, images) {
   
   function goToSlide(index) {
     currentIndex = index;
-    setPreviewImage(mainImage, images[index].path, { highWidth: '1600' });
+    setPreviewImage(mainImage, images[index].path);
     mainImage.alt = images[index].caption || "";
     caption.textContent = images[index].caption || "";
     
@@ -393,7 +397,7 @@ function renderThumbnail(album, images) {
   
   const mainImage = document.createElement("img");
   mainImage.className = "thumbnail-main";
-  setPreviewImage(mainImage, images[0].path, { highWidth: '1600' });
+  setPreviewImage(mainImage, images[0].path);
   mainImage.alt = images[0].caption || "";
   
   const overlay = document.createElement("div");
@@ -521,7 +525,7 @@ function renderThumbnail(album, images) {
     thumb.alt = image.caption || "";
     thumb.addEventListener("click", () => {
       currentIndex = i;
-      setPreviewImage(mainImage, image.path, { highWidth: '1600' });
+      setPreviewImage(mainImage, image.path);
       mainImage.alt = image.caption || "";
       caption.textContent = image.caption || "";
       thumbBar.querySelectorAll(".thumbnail").forEach((t, j) => {
@@ -583,7 +587,7 @@ function renderThumbnail(album, images) {
   mainImage.addEventListener("click", () => {
     currentIndex = (currentIndex + 1) % images.length;
     const nextImage = images[currentIndex];
-    setPreviewImage(mainImage, nextImage.path, { highWidth: '1600' });
+    setPreviewImage(mainImage, nextImage.path);
     mainImage.alt = nextImage.caption || "";
     caption.textContent = nextImage.caption || "";
     thumbBar.querySelectorAll(".thumbnail").forEach((t, j) => {

@@ -577,12 +577,6 @@ h2, h3 {
   object-fit: contain;
 }
 
-.slideshow-main.is-loading,
-.thumbnail-main.is-loading {
-  filter: blur(10px);
-  transform: scale(1.01);
-}
-
 .slideshow-overlay {
   position: absolute;
   top: 0;
