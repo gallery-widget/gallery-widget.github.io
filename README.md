@@ -10,6 +10,11 @@ Supabase 設定檢查清單
 1) 啟用 Email Auth (Magic Link) 在驗證提供者中
 2) 建立儲存桶：album (public)
 3) 建立資料表：albums, images
+4) **啟用圖片轉換功能** (Image Transformations)：
+   - 在 Supabase Dashboard → Storage → Settings
+   - 啟用 "Image Transformations" 以支持動態圖片優化
+   - 這可以大幅提升圖片載入速度（特別是大型 PNG 檔案）
+   - 如未啟用，預覽仍會正常運作，但會載入原始檔案
 
 資料表結構
 albums

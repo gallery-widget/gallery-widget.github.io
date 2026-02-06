@@ -64,11 +64,11 @@ body::-webkit-scrollbar-button,
 .bg {
   position: fixed;
   inset: 0;
-  background:
+  /*background:
     radial-gradient(circle at 10% 10%, rgba(249, 115, 22, 0.24), transparent 40%),
     radial-gradient(circle at 80% 20%, rgba(14, 165, 233, 0.22), transparent 45%),
     radial-gradient(circle at 20% 80%, rgba(94, 234, 212, 0.18), transparent 50%),
-    linear-gradient(135deg, rgba(15, 23, 42, 0.9), rgba(2, 6, 23, 0.95));
+    linear-gradient(135deg, rgba(15, 23, 42, 0.9), rgba(2, 6, 23, 0.95));*/
   z-index: -1;
 }
 
@@ -94,13 +94,11 @@ header.shell {
   width: 56px;
   height: 56px;
   border-radius: 16px;
-  background: var(--accent);
   display: grid;
   place-items: center;
   font-weight: 700;
-  font-size: 20px;
+  font-size: 40px;
   color: #0c1117;
-  box-shadow: var(--shadow);
 }
 
 h1 {
@@ -909,6 +907,9 @@ h2, h3 {
 /* 預覽窗口調整尺寸支持 */
 #previewContainer {
   user-select: none;
+  max-width: 100%; /* 確保不會超過父容器 */
+  width: 100%; /* 預設寬度 */
+  height: 420px; /* 預設高度 */
 }
 
 #resizeHandle {

@@ -7,6 +7,23 @@ const MAX_IMAGE_SIZE = 1600;
 
 const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
+// 圖片URL輔助函數：為預覽生成優化版本，為下載/開啟保留原圖
+function getImageUrl(path, options = {}) {
+  const url = supabase.storage.from(BUCKET).getPublicUrl(path).data.publicUrl;
+  
+  // 如果是預覽模式，添加 transform 參數來優化載入速度
+  if (options.preview) {
+    const urlObj = new URL(url);
+    // 設置最大寬度為1200px，質量為85（在質量和大小間取得平衡）
+    urlObj.searchParams.set('width', options.width || '1200');
+    urlObj.searchParams.set('quality', options.quality || '85');
+    return urlObj.toString();
+  }
+  
+  // 原始URL用於下載、複製、開啟操作
+  return url;
+}
+
 const state = {
   user: null,
   album: null,
@@ -160,7 +177,7 @@ async function loadAlbums() {
     if (images && images.length > 0) {
       images.slice(0, 5).forEach((img) => {
         const imgEl = document.createElement("img");
-        imgEl.src = supabase.storage.from(BUCKET).getPublicUrl(img.path).data.publicUrl;
+        imgEl.src = getImageUrl(img.path, { preview: true, width: '400' });
         preview.appendChild(imgEl);
       });
     } else {
@@ -347,7 +364,7 @@ function renderImages() {
     card.dataset.index = index;
 
     const img = document.createElement("img");
-    img.src = supabase.storage.from(BUCKET).getPublicUrl(image.path).data.publicUrl;
+    img.src = getImageUrl(image.path, { preview: true, width: '600' });
 
     const input = document.createElement("input");
     input.className = "field";
@@ -582,6 +599,14 @@ function updateEmbed() {
 
   ui.shareLink.value = url;
   ui.embedCode.value = `<iframe src="${url}" width="700" height="420" frameborder="0" allowfullscreen></iframe>`;
+  
+  // 重置預覽容器為預設大小
+  const previewContainer = document.getElementById('previewContainer');
+  if (previewContainer) {
+    previewContainer.style.width = '';
+    previewContainer.style.height = '420px';
+  }
+  
   // 添加时间戳强制刷新预览缓存
   const previewUrl = new URL(url);
   previewUrl.searchParams.set('_t', Date.now());

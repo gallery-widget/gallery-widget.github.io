@@ -6,6 +6,23 @@ const BUCKET = "album";
 
 const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
+// 圖片URL輔助函數：為預覽生成優化版本，為下載/開啟保留原圖
+function getImageUrl(path, options = {}) {
+  const url = supabase.storage.from(BUCKET).getPublicUrl(path).data.publicUrl;
+  
+  // 如果是預覽模式，添加 transform 參數來優化載入速度
+  if (options.preview) {
+    const urlObj = new URL(url);
+    // 設置最大寬度，質量為85（在質量和大小間取得平衡）
+    urlObj.searchParams.set('width', options.width || '1600');
+    urlObj.searchParams.set('quality', options.quality || '85');
+    return urlObj.toString();
+  }
+  
+  // 原始URL用於下載、複製、開啟操作
+  return url;
+}
+
 const ui = {
   grid: document.getElementById("embedGrid"),
 };
@@ -39,13 +56,13 @@ function toggleFullscreen() {
 
 function openCurrentImage(getCurrentImageFn) {
   const image = getCurrentImageFn();
-  const url = supabase.storage.from(BUCKET).getPublicUrl(image.path).data.publicUrl;
+  const url = getImageUrl(image.path); // 使用原始URL
   window.open(url, "_blank", "noopener");
 }
 
 function downloadCurrentImage(getCurrentImageFn) {
   const image = getCurrentImageFn();
-  const url = supabase.storage.from(BUCKET).getPublicUrl(image.path).data.publicUrl;
+  const url = getImageUrl(image.path); // 使用原始URL
   
   try {
     fetch(url)
@@ -78,7 +95,7 @@ function downloadCurrentImage(getCurrentImageFn) {
 
 async function copyCurrentImage(getCurrentImageFn) {
   const image = getCurrentImageFn();
-  const url = supabase.storage.from(BUCKET).getPublicUrl(image.path).data.publicUrl;
+  const url = getImageUrl(image.path); // 使用原始URL
   
   if (!navigator.clipboard || !window.ClipboardItem) {
     alert("此瀏覽器不支援複製圖片功能。");
@@ -179,7 +196,7 @@ function renderSlideshow(album, images) {
   
   const mainImage = document.createElement("img");
   mainImage.className = "slideshow-main";
-  mainImage.src = supabase.storage.from(BUCKET).getPublicUrl(images[0].path).data.publicUrl;
+  mainImage.src = getImageUrl(images[0].path, { preview: true });
   mainImage.alt = images[0].caption || "";
   
   const overlay = document.createElement("div");
@@ -264,7 +281,7 @@ function renderSlideshow(album, images) {
   
   function goToSlide(index) {
     currentIndex = index;
-    mainImage.src = supabase.storage.from(BUCKET).getPublicUrl(images[index].path).data.publicUrl;
+    mainImage.src = getImageUrl(images[index].path, { preview: true });
     mainImage.alt = images[index].caption || "";
     caption.textContent = images[index].caption || "";
     
@@ -337,7 +354,7 @@ function renderThumbnail(album, images) {
   
   const mainImage = document.createElement("img");
   mainImage.className = "thumbnail-main";
-  mainImage.src = supabase.storage.from(BUCKET).getPublicUrl(images[0].path).data.publicUrl;
+  mainImage.src = getImageUrl(images[0].path, { preview: true });
   mainImage.alt = images[0].caption || "";
   
   const overlay = document.createElement("div");
@@ -461,11 +478,11 @@ function renderThumbnail(album, images) {
     const thumb = document.createElement("img");
     thumb.className = i === 0 ? "thumbnail active" : "thumbnail";
     thumb.dataset.index = i;
-    thumb.src = supabase.storage.from(BUCKET).getPublicUrl(image.path).data.publicUrl;
+    thumb.src = getImageUrl(image.path, { preview: true, width: '300' });
     thumb.alt = image.caption || "";
     thumb.addEventListener("click", () => {
       currentIndex = i;
-      mainImage.src = supabase.storage.from(BUCKET).getPublicUrl(image.path).data.publicUrl;
+      mainImage.src = getImageUrl(image.path, { preview: true });
       mainImage.alt = image.caption || "";
       caption.textContent = image.caption || "";
       thumbBar.querySelectorAll(".thumbnail").forEach((t, j) => {
@@ -500,7 +517,7 @@ function renderThumbnail(album, images) {
   mainImage.addEventListener("click", () => {
     currentIndex = (currentIndex + 1) % images.length;
     const nextImage = images[currentIndex];
-    mainImage.src = supabase.storage.from(BUCKET).getPublicUrl(nextImage.path).data.publicUrl;
+    mainImage.src = getImageUrl(nextImage.path, { preview: true });
     mainImage.alt = nextImage.caption || "";
     caption.textContent = nextImage.caption || "";
     thumbBar.querySelectorAll(".thumbnail").forEach((t, j) => {
