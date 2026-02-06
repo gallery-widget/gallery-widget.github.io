@@ -548,7 +548,12 @@ async function deleteImage(image) {
   await supabase.storage.from(BUCKET).remove([image.path]);
   await loadImages();
   if (state.user && state.album && state.images.length === 0) {
-    await deleteAlbum(state.album.id);
+    const deletedAlbumId = state.album.id;
+    state.album = null;
+    state.images = [];
+    ui.imageList.innerHTML = "";
+    updateEmbed();
+    await deleteAlbum(deletedAlbumId);
     return;
   }
   updateEmbed();
