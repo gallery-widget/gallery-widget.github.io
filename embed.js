@@ -7,12 +7,18 @@ const BUCKET = "album";
 const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
 // 圖片URL輔助函數：為預覽生成優化版本，為下載/開啟保留原圖
+function encodeStoragePath(path) {
+  return path.split("/").map(encodeURIComponent).join("/");
+}
+
 function getImageUrl(path, options = {}) {
   const url = supabase.storage.from(BUCKET).getPublicUrl(path).data.publicUrl;
   
   // 如果是預覽模式，添加 transform 參數來優化載入速度
   if (options.preview) {
-    const urlObj = new URL(url);
+    // 使用 render/image 端點可確保轉換被套用
+    const renderUrl = `${SUPABASE_URL}/storage/v1/render/image/public/${BUCKET}/${encodeStoragePath(path)}`;
+    const urlObj = new URL(renderUrl);
     // 設置最大寬度，質量為85（在質量和大小間取得平衡）
     urlObj.searchParams.set('width', options.width || '1600');
     urlObj.searchParams.set('quality', options.quality || '85');
