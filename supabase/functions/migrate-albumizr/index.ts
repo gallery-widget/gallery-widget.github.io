@@ -50,7 +50,10 @@ Deno.serve(async (req) => {
     const thumbnails = document.querySelectorAll('.th');
     const images: Array<{ url: string; caption?: string }> = [];
 
-    thumbnails.forEach((thumb: any) => {
+    console.log(`Found ${thumbnails.length} thumbnail elements`);
+
+    // Convert NodeList to Array for iteration
+    for (const thumb of Array.from(thumbnails)) {
       const dataUrl = thumb.getAttribute('data-url');
       const dataCaption = thumb.getAttribute('data-caption') || '';
       
@@ -60,7 +63,7 @@ Deno.serve(async (req) => {
           caption: dataCaption,
         });
       }
-    });
+    }
 
     console.log(`Extracted ${images.length} images from ${albumUrl}`);
 
