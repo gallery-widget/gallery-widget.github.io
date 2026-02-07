@@ -165,6 +165,10 @@ h2, h3 {
   margin-top: 0;
 }
 
+.grid + .card {
+  margin-top: 24px;
+}
+
 .row {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
