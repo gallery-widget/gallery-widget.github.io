@@ -1025,6 +1025,8 @@ async function fetchAlbumizrImagesViaEdgeFunction(albumUrl) {
     const { data: sessionData } = await supabase.auth.getSession();
     const accessToken = sessionData.session?.access_token || SUPABASE_ANON_KEY;
 
+    console.log('調用 Edge Function，參數：', { albumKey: key, method: 'key' });
+
     // 調用 Supabase Edge Function
     const response = await supabase.functions.invoke('migrate-albumizr', {
       body: {
@@ -1037,24 +1039,38 @@ async function fetchAlbumizrImagesViaEdgeFunction(albumUrl) {
       },
     });
 
+    console.log('Edge Function 回應：', response);
+
+    // 檢查是否有錯誤
     if (response.error) {
-      throw new Error(response.error.message || '提取失敗');
+      const errorMsg = response.error.message || JSON.stringify(response.error);
+      console.error('Edge Function 錯誤：', errorMsg);
+      throw new Error(`Edge Function 錯誤: ${errorMsg}`);
     }
 
     const data = response.data;
     
-    if (!data.success) {
-      throw new Error(data.error || '提取失敗');
+    console.log('Edge Function 數據：', data);
+
+    // 檢查自訂的 success 標志
+    if (data && !data.success) {
+      const errorMsg = data.error || '提取失敗（未知原因）';
+      console.error('遷移失敗：', errorMsg);
+      throw new Error(`遷移失敗: ${errorMsg}`);
     }
 
-    if (!data.images || data.images.length === 0) {
-      throw new Error('未找到任何圖片');
+    if (!data || !data.images || data.images.length === 0) {
+      const errorMsg = data?.error || '未找到任何圖片';
+      console.warn('無圖片：', errorMsg);
+      throw new Error(`無圖片: ${errorMsg}`);
     }
 
     addMigrationLog(`✓ 成功提取 ${data.images.length} 張圖片及說明文字 (伺服器端)`, 'success');
     return data.images;
 
   } catch (error) {
+    console.error('fetchAlbumizrImagesViaEdgeFunction 捕捉到錯誤：', error);
+    addMigrationLog(`✗ 遷移失敗: ${error.message}`, 'error');
     throw error;
   }
 }
