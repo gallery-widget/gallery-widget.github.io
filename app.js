@@ -1027,40 +1027,51 @@ async function fetchAlbumizrImagesViaEdgeFunction(albumUrl) {
 
     console.log('調用 Edge Function，參數：', { albumKey: key, method: 'key' });
 
-    // 調用 Supabase Edge Function
-    const response = await supabase.functions.invoke('migrate-albumizr', {
-      body: {
+    // 使用原生 fetch API 直接調用，以便捕捉所有狀態碼和響應內容
+    const functionUrl = `${SUPABASE_URL}/functions/v1/migrate-albumizr`;
+    
+    const fetchResponse = await fetch(functionUrl, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${accessToken}`,
+        'apikey': SUPABASE_ANON_KEY,
+      },
+      body: JSON.stringify({
         albumKey: key,
         method: 'key'
-      },
-      headers: {
-        Authorization: `Bearer ${accessToken}`,
-        apikey: SUPABASE_ANON_KEY,
-      },
+      })
     });
 
-    console.log('Edge Function 回應：', response);
-
-    // 檢查是否有錯誤
-    if (response.error) {
-      const errorMsg = response.error.message || JSON.stringify(response.error);
-      console.error('Edge Function 錯誤：', errorMsg);
-      throw new Error(`Edge Function 錯誤: ${errorMsg}`);
+    console.log('Fetch Response Status:', fetchResponse.status, fetchResponse.statusText);
+    
+    const responseText = await fetchResponse.text();
+    console.log('Fetch Response Body:', responseText);
+    
+    let data;
+    try {
+      data = JSON.parse(responseText);
+    } catch (e) {
+      console.error('無法解析 JSON 回應:', e);
+      throw new Error(`Edge Function 返回非 JSON 內容 (${fetchResponse.status}): ${responseText}`);
     }
 
-    const data = response.data;
-    
-    console.log('Edge Function 數據：', data);
+    // 檢查狀態碼
+    if (!fetchResponse.ok) {
+      const errorMsg = data.error || `HTTP ${fetchResponse.status}: ${responseText}`;
+      console.error('Edge Function HTTP 錯誤：', errorMsg);
+      throw new Error(`Edge Function HTTP 錯誤: ${errorMsg}`);
+    }
 
     // 檢查自訂的 success 標志
-    if (data && !data.success) {
+    if (!data.success) {
       const errorMsg = data.error || '提取失敗（未知原因）';
       console.error('遷移失敗：', errorMsg);
       throw new Error(`遷移失敗: ${errorMsg}`);
     }
 
-    if (!data || !data.images || data.images.length === 0) {
-      const errorMsg = data?.error || '未找到任何圖片';
+    if (!data.images || data.images.length === 0) {
+      const errorMsg = data.error || '未找到任何圖片';
       console.warn('無圖片：', errorMsg);
       throw new Error(`無圖片: ${errorMsg}`);
     }
