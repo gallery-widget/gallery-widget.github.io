@@ -45,25 +45,41 @@ Deno.serve(async (req) => {
     const html = await response.text();
     
     console.log(`Fetched HTML, length: ${html.length}`);
+    console.log(`HTML sample (first 1500 chars):\n${html.substring(0, 1500)}`);
     
     // Extract images using regex
     const images: Array<{ url: string; caption?: string }> = [];
     
-    // Pattern: <div data-url="URL" data-caption="CAPTION" class="th" ...>
-    // Match all divs with data-url attribute
-    const divRegex = /<div[^>]*data-url="([^"]+)"[^>]*data-caption="([^"]*)"[^>]*class="th"/gi;
-    let match;
+    // First, find all data-url entries
+    // Pattern: data-url="URL"
+    const urlRegex = /data-url="([^"]+)"/g;
+    let urlMatch;
+    const urlMatches: string[] = [];
     
-    while ((match = divRegex.exec(html)) !== null) {
-      const url = match[1];
-      const caption = match[2] || '';
-      
+    while ((urlMatch = urlRegex.exec(html)) !== null) {
+      urlMatches.push(urlMatch[1]);
+    }
+    
+    console.log(`Found ${urlMatches.length} data-url matches`);
+    
+    // Now find all captions and their positions
+    const captionRegex = /data-caption="([^"]*)"/g;
+    let captionMatch;
+    const captions: string[] = [];
+    
+    while ((captionMatch = captionRegex.exec(html)) !== null) {
+      captions.push(captionMatch[1] || '');
+    }
+    
+    console.log(`Found ${captions.length} captions`);
+    
+    // Match URLs with captions (assume same order)
+    for (let i = 0; i < urlMatches.length; i++) {
       images.push({
-        url: url,
-        caption: caption,
+        url: urlMatches[i],
+        caption: captions[i] || '',
       });
-      
-      console.log(`Found image: url=${url}, caption=${caption}`);
+      console.log(`Image ${i + 1}: url=${urlMatches[i]}, caption=${captions[i] || ''}`);
     }
 
     console.log(`Extracted ${images.length} images from ${albumUrl}`);
