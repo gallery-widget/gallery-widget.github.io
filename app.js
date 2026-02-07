@@ -1162,37 +1162,68 @@ async function fetchAlbumizrImages(albumUrl) {
   throw lastError || new Error('無法提取圖片');
 }
 
-// 從 URL 下載圖片並轉換為 Blob
+// 從 URL 下載圖片並轉換為 Blob - 使用 Edge Function
 async function downloadImage(imageUrl) {
-  // 嘗試多個 CORS 代理
-  let lastError = null;
-  for (const proxy of CORS_PROXIES) {
-    try {
-      const proxyUrl = proxy.url(imageUrl);
-      
-      const response = await fetch(proxyUrl);
-      if (!response.ok) {
-        throw new Error(`HTTP 錯誤: ${response.status}`);
-      }
+  try {
+    // 使用 Edge Function 從伺服器端下載圖片，繞過 CORS 問題
+    const functionUrl = `${SUPABASE_URL}/functions/v1/migrate-albumizr`;
+    
+    const response = await fetch(functionUrl, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'apikey': SUPABASE_ANON_KEY,
+      },
+      body: JSON.stringify({
+        imageUrl: imageUrl
+      })
+    });
 
-      const blob = await response.blob();
-      
-      // 確保是圖片類型
-      if (!blob.type.startsWith('image/')) {
-        throw new Error('下載的內容不是圖片');
-      }
-
-      return blob;
-      
-    } catch (error) {
-      lastError = error;
-      // 靜默失敗，嘗試下一個代理
-      continue;
+    if (!response.ok) {
+      throw new Error(`HTTP 錯誤: ${response.status}`);
     }
+
+    const blob = await response.blob();
+    
+    // 確保是圖片類型
+    if (!blob.type.startsWith('image/')) {
+      throw new Error('下載的內容不是圖片');
+    }
+
+    return blob;
+    
+  } catch (error) {
+    console.error('Edge Function 下載失敗:', error);
+    // 如果 Edge Function 失敗，嘗試備用方法（CORS 代理）
+    let lastError = null;
+    for (const proxy of CORS_PROXIES) {
+      try {
+        const proxyUrl = proxy.url(imageUrl);
+        
+        const response = await fetch(proxyUrl);
+        if (!response.ok) {
+          throw new Error(`HTTP 錯誤: ${response.status}`);
+        }
+
+        const blob = await response.blob();
+        
+        // 確保是圖片類型
+        if (!blob.type.startsWith('image/')) {
+          throw new Error('下載的內容不是圖片');
+        }
+
+        return blob;
+        
+      } catch (error) {
+        lastError = error;
+        // 靜默失敗，嘗試下一個代理
+        continue;
+      }
+    }
+    
+    // 所有方法都失敗了
+    throw new Error(`下載失敗: ${lastError?.message || '所有代理都失敗'}`);
   }
-  
-  // 所有代理都失敗了
-  throw new Error(`下載失敗: ${lastError?.message || '所有代理都失敗'}`);
 }
 
 // 遷移單個相簿

@@ -11,12 +11,42 @@ Deno.serve(async (req) => {
   }
 
   try {
-    const { albumKey, method } = await req.json();
+    const body = await req.json();
+    const { albumKey, method, imageUrl } = body;
     
-    if (!albumKey) {
-      throw new Error('Missing albumKey parameter');
+    // Route 1: Extract images from Albumizr page
+    if (albumKey && method === 'key') {
+      return handleExtractImages(albumKey, corsHeaders);
     }
+    
+    // Route 2: Download image
+    if (imageUrl) {
+      return await handleDownloadImage(imageUrl, corsHeaders);
+    }
+    
+    throw new Error('Missing required parameters (albumKey/method or imageUrl)');
+    
+  } catch (error) {
+    console.error('Error in migrate-albumizr function:', error);
+    
+    return new Response(
+      JSON.stringify({
+        success: false,
+        error: error.message || String(error),
+      }),
+      {
+        status: 500,
+        headers: {
+          ...corsHeaders,
+          'Content-Type': 'application/json',
+        },
+      }
+    );
+  }
+})
 
+function handleExtractImages(albumKey: string, corsHeaders: any) {
+  return (async () => {
     // Construct Albumizr URL with correct format
     const albumUrl = `https://albumizr.com/skins/bandana/index.php?key=${albumKey}`;
     
@@ -45,41 +75,51 @@ Deno.serve(async (req) => {
     const html = await response.text();
     
     console.log(`Fetched HTML, length: ${html.length}`);
-    console.log(`HTML sample (first 1500 chars):\n${html.substring(0, 1500)}`);
     
-    // Extract images using regex
+    // Extract imageList from JavaScript variable
+    // Pattern: var imageList = [...];
+    const imageListRegex = /var\s+imageList\s*=\s*(\[.*?\]);/s;
+    const match = imageListRegex.exec(html);
+    
+    if (!match || !match[1]) {
+      console.error('Could not find imageList variable in HTML');
+      throw new Error('未找到圖片列表 (imageList 變數)');
+    }
+    
+    const jsonString = match[1];
+    console.log(`Found imageList JSON, length: ${jsonString.length}`);
+    
+    // Parse JSON
+    let imageListData: Array<any>;
+    try {
+      imageListData = JSON.parse(jsonString);
+    } catch (e) {
+      console.error('Failed to parse imageList JSON:', e);
+      throw new Error('解析圖片列表失敗');
+    }
+    
+    console.log(`Parsed ${imageListData.length} images from imageList`);
+    
+    // Convert to our format
     const images: Array<{ url: string; caption?: string }> = [];
     
-    // First, find all data-url entries
-    // Pattern: data-url="URL"
-    const urlRegex = /data-url="([^"]+)"/g;
-    let urlMatch;
-    const urlMatches: string[] = [];
-    
-    while ((urlMatch = urlRegex.exec(html)) !== null) {
-      urlMatches.push(urlMatch[1]);
-    }
-    
-    console.log(`Found ${urlMatches.length} data-url matches`);
-    
-    // Now find all captions and their positions
-    const captionRegex = /data-caption="([^"]*)"/g;
-    let captionMatch;
-    const captions: string[] = [];
-    
-    while ((captionMatch = captionRegex.exec(html)) !== null) {
-      captions.push(captionMatch[1] || '');
-    }
-    
-    console.log(`Found ${captions.length} captions`);
-    
-    // Match URLs with captions (assume same order)
-    for (let i = 0; i < urlMatches.length; i++) {
+    for (const item of imageListData) {
+      let url = item.url;
+      const caption = item.caption || '';
+      
+      // Handle protocol-relative URLs
+      if (url.startsWith('//')) {
+        url = 'https:' + url;
+      } else if (!url.startsWith('http')) {
+        url = 'https://albumizr.com' + url;
+      }
+      
       images.push({
-        url: urlMatches[i],
-        caption: captions[i] || '',
+        url: url,
+        caption: caption,
       });
-      console.log(`Image ${i + 1}: url=${urlMatches[i]}, caption=${captions[i] || ''}`);
+      
+      console.log(`Image: url=${url}, caption=${caption}`);
     }
 
     console.log(`Extracted ${images.length} images from ${albumUrl}`);
@@ -98,22 +138,35 @@ Deno.serve(async (req) => {
         },
       }
     );
+  })();
+}
 
-  } catch (error) {
-    console.error('Error in migrate-albumizr function:', error);
-    
-    return new Response(
-      JSON.stringify({
-        success: false,
-        error: error.message || String(error),
-      }),
-      {
-        status: 500,
-        headers: {
-          ...corsHeaders,
-          'Content-Type': 'application/json',
-        },
-      }
-    );
+async function handleDownloadImage(imageUrl: string, corsHeaders: any) {
+  console.log(`Downloading image: ${imageUrl}`);
+  
+  // Fetch image from Albumizr
+  const response = await fetch(imageUrl, {
+    headers: {
+      'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+      'Referer': 'https://albumizr.com/',
+    },
+  });
+
+  if (!response.ok) {
+    throw new Error(`Failed to download image: ${response.status} ${response.statusText}`);
   }
-})
+
+  const blob = await response.blob();
+  
+  console.log(`Downloaded image, size: ${blob.size}, type: ${blob.type}`);
+
+  // Return the image blob with proper headers
+  return new Response(blob, {
+    headers: {
+      ...corsHeaders,
+      'Content-Type': blob.type,
+      'Content-Length': blob.size,
+      'Cache-Control': 'public, max-age=86400',
+    },
+  });
+}
