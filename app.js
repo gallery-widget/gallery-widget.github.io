@@ -1012,7 +1012,47 @@ const CORS_PROXIES = [
   { name: 'CorsProxy', url: (targetUrl) => `https://corsproxy.io/?${encodeURIComponent(targetUrl)}` },
 ];
 
-// 從 albumizr 獲取圖片列表（包含 URL 和說明文字）
+// 使用 Supabase Edge Function 提取 Albumizr 圖片（推薦方法，無 CORS 問題）
+async function fetchAlbumizrImagesViaEdgeFunction(albumUrl) {
+  const key = extractAlbumizrKey(albumUrl);
+  if (!key) {
+    throw new Error('無法從 URL 中提取相簿 key');
+  }
+
+  addMigrationLog(`正在從 albumizr 提取相簿 [${key}] 的圖片 (使用伺服器端)...`, 'info');
+
+  try {
+    // 調用 Supabase Edge Function
+    const response = await supabase.functions.invoke('migrate-albumizr', {
+      body: {
+        albumKey: key,
+        method: 'key'
+      }
+    });
+
+    if (response.error) {
+      throw new Error(response.error.message || '提取失敗');
+    }
+
+    const data = response.data;
+    
+    if (!data.success) {
+      throw new Error(data.error || '提取失敗');
+    }
+
+    if (!data.images || data.images.length === 0) {
+      throw new Error('未找到任何圖片');
+    }
+
+    addMigrationLog(`✓ 成功提取 ${data.images.length} 張圖片及說明文字 (伺服器端)`, 'success');
+    return data.images;
+
+  } catch (error) {
+    throw error;
+  }
+}
+
+// 從 albumizr 獲取圖片列表（包含 URL 和說明文字）- 使用 CORS 代理（備用方法）
 async function fetchAlbumizrImages(albumUrl) {
   const key = extractAlbumizrKey(albumUrl);
   if (!key) {
@@ -1129,8 +1169,14 @@ async function migrateAlbumizrAlbum(albumUrl, albumIndex, totalAlbums) {
     
     addMigrationLog(`[${albumIndex}/${totalAlbums}] 開始遷移相簿: ${albumTitle}`, 'info');
 
-    // 1. 提取圖片列表（包含 URL 和說明文字）
-    const images = await fetchAlbumizrImages(albumUrl);
+    // 1. 提取圖片列表（先嘗試使用 Edge Function，失敗則使用 CORS 代理）
+    let images;
+    try {
+      images = await fetchAlbumizrImagesViaEdgeFunction(albumUrl);
+    } catch (edgeFunctionError) {
+      addMigrationLog(`伺服器端提取失敗，嘗試使用 CORS 代理...`, 'warning');
+      images = await fetchAlbumizrImages(albumUrl);
+    }
 
     // 2. 創建新相簿
     addMigrationLog(`正在創建相簿...`, 'info');

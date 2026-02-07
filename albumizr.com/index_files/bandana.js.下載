@@ -1,0 +1,300 @@
+
+$.fn.isOnScreen = function(){
+    var win = $(window);
+    var viewport = {
+        top : win.scrollTop(),
+        left : win.scrollLeft()
+    };
+    viewport.right = viewport.left + win.width();
+    viewport.bottom = viewport.top + win.height();
+    
+    var bounds = this.offset();
+    bounds.right = bounds.left + this.outerWidth();
+    bounds.bottom = bounds.top + this.outerHeight();
+    
+    return (!(viewport.right < bounds.left || viewport.left > bounds.right || viewport.bottom < bounds.top || viewport.top > bounds.bottom));
+};
+
+var Bandana = function(images) {
+
+    var $self = this;
+    this.images = images;
+    this.currentImage = null;
+    this.numLoading = 0;
+    this.waitingForImage = null;
+
+    this.clickImage = function() {
+        $self.stepForward();
+    }
+
+    this.clickThumb = function() {
+        $self.showImage($(this).parent());
+        $self.centerInView($(this).parent(), true);
+    };
+    
+    /* required by albumizr common button */
+    this.getCurrentUrl = function() {
+        return $self.currentImage.attr('data-url');
+    }
+
+    this.stepBackward = function() {
+        $('#thumbContainer div.th').each(function(i, v) {
+            if ($(this).attr('data-url') !== $self.currentImage.attr('data-url')) {
+                return true;
+            }
+            if (i > 0) {
+                $self.currentImage = $(this).prev();
+                return false;
+            } else { 
+                $self.currentImage = $('#thumbContainer div.th:last-child');
+                return false;
+            }
+        });
+        $self.showImage($self.currentImage);
+        $self.makeSureInViewBack($self.currentImage, true);
+    }
+
+    this.stepForward = function() {
+        $('#thumbContainer div.th').each(function(i, v) {
+            if ($(this).attr('data-url') !== $self.currentImage.attr('data-url')) {
+                return true;
+            }
+            if (i < $('#thumbContainer div.th').length-1) {
+                $self.currentImage = $(this).next();
+                return false;
+            } else {
+                $self.currentImage = $('#thumbContainer div.th:first-child');
+                return false;
+            }
+        });
+        $self.showImage($self.currentImage);
+        $self.makeSureInView($self.currentImage, true);
+    };
+
+    this.showImage = function(img) {
+        if ($self.numLoading === 0) {
+            location.hash = $(img).index()+1;
+        }
+        $self.currentImage = $(img);
+        $('#thumbContainer div').removeClass('selected');
+        $(img).addClass('selected');
+
+        // unload images farther away than 2 window widths
+        $('#thumbContainer div.th').each(function() {
+            if (!$(this).isOnScreen() && $(this).children().length > 0) {
+                if (Math.abs($(img).position().left - $(this).position().left) > $(window).width() * 2) {
+                    $(this).empty();
+                }
+            }
+        });
+
+        $self.doResize();
+    };
+
+    this.makeSureInView = function(container, animate) {
+        if (container.next().length > 0
+            && $self.currentImage.attr('data-url') !== $('#thumbContainer div.th:first-child').attr('data-url'))
+        {
+            $('.scroller').data('jsp').scrollToElement(container.next().get(), false, animate);
+        } else {
+            $('.scroller').data('jsp').scrollToElement(container.get(), false, animate);
+        }
+    }
+    
+    this.makeSureInViewBack = function(container, animate) {
+        if (container.prev().length > 0
+            && $self.currentImage.attr('data-url') !== $('#thumbContainer div.th:last-child').attr('data-url'))
+        {
+            $('.scroller').data('jsp').scrollToElement(container.prev().get(), false, animate);
+        } else {
+            $('.scroller').data('jsp').scrollToElement(container.get(), false, animate);
+        }
+    }
+    
+    this.centerInView = function(container, animate) {
+        $('.scroller').data('jsp').scrollTo(container.position().left - $(window).width()/2 + container.width()/2, 0, animate);
+    }
+
+    this.resize = function() {
+        clearTimeout($self.resizeThreshold);
+        $self.resizeThreshold = setTimeout($self.doResize, 200);
+    }
+
+    this.loadImage = function(url) {
+        return $('<img>', { src : url })
+            .on('dragstart', function(event) { event.preventDefault(); })
+            .load(function() {
+                $(this).fadeIn();
+                $self.numLoading--;
+                if ($(this).attr('src') === waitingForImage) {
+                    $(this).trigger('mousedown');
+                }
+            })
+            .mousedown($self.clickThumb).hide();
+    }
+
+    this.doResize = function() {
+
+        var thumbWidth = 0;
+        var e = $('#thumbContainer img').first();
+        var maxWidth = parseInt(e.css('max-width'));
+        if (!isNaN(maxWidth))  {
+            $self.maxWidth = maxWidth;
+            $self.maxHeight = parseInt(e.css('max-height'));
+        }
+
+        $('#thumbContainer div.th').each(function(ix) {
+            var w = parseInt($self.images[ix].width);
+            var h = parseInt($self.images[ix].height);
+            var scale = $self.maxWidth / w;
+            if ( $self.maxHeight / h < scale) {
+                scale =  $self.maxHeight / h;
+            }
+            var px = 0 | (w * scale);
+            var py = 0 | (h * scale);
+
+            $(this).css('width', px + 'px');
+            $(this).css('height', py + 'px');
+
+            if ($(this).isOnScreen() && $(this).find('img').length == 0) {
+                $self.numLoading++;
+                $(this).append($self.loadImage($(this).attr('data-url')));
+            }
+            thumbWidth += $(this).width() + 7; 
+        });
+
+        $('#thumbContainer').css('margin-left', Math.max(0, ($(window).width() - thumbWidth) / 2) + 'px');
+
+        // this is where the big image is added
+        if ($self.currentImage) {
+            if ($('#mainContainer img:first-child').attr('src') !== $self.currentImage.attr('data-url')) {
+
+                // switch out the image
+                $('#mainContainer').empty().append(
+                        $('<img>', {
+                        'src' : $self.currentImage.attr('data-url'),
+                        'class' : 'loading'
+                        })
+                    .on('dragstart', function(event) { event.preventDefault(); })
+                    .on('load', function() {
+                        if ($(this).hasClass('loading')) {
+                            $(this).removeClass('loading');
+                            $self.positionImage($(this));
+                        }
+                    })
+                    .mousedown($self.clickImage)
+                ).append($self.currentImage.attr('data-caption') ? $('<p>').addClass('caption').append($self.currentImage.attr('data-caption')) : null);
+            }
+            $('#mainContainer').css('height', ($(window).height() - ($('#thumbContainer').height() + 18)) + 'px')
+            $self.positionImage($('#mainContainer img'));
+        }
+    };
+
+    this.positionImage = function(i) {
+        var maxWidth = i.parent().width();
+        var maxHeight = i.parent().height();
+        if (isNaN(i.width()) || i.width() == 0) {
+            i.css('margin: 0');
+            return;
+        }
+
+        var scale = maxWidth / i.width();
+        if (maxHeight / i.height() < scale) {
+            scale = maxHeight / i.height();
+        } 
+
+        i.width((i.width()*scale));
+
+        if (maxWidth > i.width()) {
+            i.css('margin-left', (maxWidth-i.width())/2 + 'px');
+        } else {
+            i.css('margin-left', '0');
+        }
+
+        if (maxHeight > i.height()) {
+            var k = (maxHeight-i.height())/2;
+            if (k < maxHeight*0.1) {
+                k = 0;
+            }
+            i.css('margin-top', k + 'px');
+        } else {
+            i.css('margin-top', '0');
+        }
+    }
+
+    this.initScroll = function() {
+
+        $('#thumbContainer').jScrollPane({
+            autoReinitialise: true,
+            enableKeyboardNavigation : false
+        }).bind('jsp-scroll-x',	function(event, scrollPositionX, isAtLeft, isAtRight) {
+            clearTimeout($self.scrollThreshold);
+            $self.scrollThreshold = setTimeout($self.doResize, 100);
+        });
+    }
+
+    this.init = function() {
+        var tc = $('<div>', { id : 'thumbContainer', 'class' : 'scroller'});
+        var mc = $('<div>', { id : 'mainContainer' });
+
+        $('body').append(tc);
+        // dummy to get the set max-width/height before start adding real img's
+        tc.append($('<img>'));
+        $self.maxWidth = parseInt($('#thumbContainer img').css('max-width'));
+        $self.maxHeight = parseInt($('#thumbContainer img').css('max-height'));
+        tc.empty();
+
+        for(var i in $self.images) {
+            var w = parseInt($self.images[i].width);
+            var h = parseInt($self.images[i].height);
+            var scale =  $self.maxWidth / w;
+            if ( $self.maxHeight / h < scale) {
+                scale =  $self.maxHeight / h;
+            }
+            var px = 0 | (w * scale);
+            var py = 0 | (h * scale);
+
+            var co = $('<div>', {
+                'data-url' : $self.images[i].url,
+                'data-caption' : $self.images[i].caption,
+                'class' : 'th',
+                'style' : 'width:' + px + 'px; height:' + py + 'px; overflow:hidden; display:inline-block'
+            });
+            tc.append(co);
+        }   
+        $('body').append(mc);
+        $self.initScroll();
+
+        var startAt = parseInt(location.hash.substring(1));
+        if (startAt > 1) {
+            var sel = $('#thumbContainer div.th:nth-child(' + startAt + ')');
+            if (sel.length > 0) {
+                $self.centerInView(sel, false);
+                waitingForImage = sel.attr("data-url");
+            }
+        } else {
+            waitingForImage = $('#thumbContainer div.th:first-child').attr("data-url");
+        }
+
+        $(window).on('resize', $self.resize);
+        $(document).keydown(function(e){
+            if (e.keyCode === 32 || e.keyCode === 39 || e.keyCode === 40) { 
+               $self.stepForward();
+               return false;
+            }
+            if (e.keyCode === 37 || e.keyCode === 38) { 
+               $self.stepBackward();
+               return false;
+            }
+        });
+        (function($){
+            $.fn.disableSelection = function() {
+                return this
+                    .attr('unselectable', 'on')
+                    .css('user-select', 'none')
+                    .on('selectstart', false);
+            };
+        })(jQuery);
+        $self.doResize();
+    };
+}
