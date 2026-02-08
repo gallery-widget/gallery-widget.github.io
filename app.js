@@ -43,6 +43,33 @@ const state = {
 
 let pickr = null;
 let loadAlbumsRun = 0;
+let draggedAlbumElement = null;
+
+// 設定記憶功能 - 從 localStorage 讀取上次的設定
+function getLastSettings() {
+  try {
+    const saved = localStorage.getItem('galleryWidgetSettings');
+    if (saved) {
+      return JSON.parse(saved);
+    }
+  } catch (e) {
+    console.warn('無法讀取儲存的設定:', e);
+  }
+  return {
+    theme: 'slideshow',
+    background_color: '#101828',
+    add_new_first: false
+  };
+}
+
+// 儲存設定到 localStorage
+function saveLastSettings(settings) {
+  try {
+    localStorage.setItem('galleryWidgetSettings', JSON.stringify(settings));
+  } catch (e) {
+    console.warn('無法儲存設定:', e);
+  }
+}
 
 // 等待 Pickr 库加载完成
 async function waitForPickr(timeout = 5000) {
@@ -197,8 +224,9 @@ async function loadAlbums() {
 
   const { data: albums, error } = await supabase
     .from("albums")
-    .select("id, title, created_at")
+    .select("id, title, created_at, sort_order")
     .eq("owner_id", state.user.id)
+    .order("sort_order", { ascending: true, nullsFirst: false })
     .order("created_at", { ascending: false });
 
   if (runId !== loadAlbumsRun) {
@@ -228,7 +256,9 @@ async function loadAlbums() {
 
     const card = document.createElement("div");
     card.className = "album-card";
+    card.draggable = true;
     card.dataset.albumId = album.id;
+    card.dataset.index = albums.indexOf(album);
     if (state.album && state.album.id === album.id) {
       card.classList.add("selected");
     }
@@ -288,6 +318,14 @@ async function loadAlbums() {
     });
     actions.appendChild(deleteBtn);
 
+    // 拖曳事件
+    card.addEventListener("dragstart", handleAlbumDragStart);
+    card.addEventListener("dragover", handleAlbumDragOver);
+    card.addEventListener("dragenter", handleAlbumDragEnter);
+    card.addEventListener("dragleave", handleAlbumDragLeave);
+    card.addEventListener("drop", handleAlbumDrop);
+    card.addEventListener("dragend", handleAlbumDragEnd);
+
     // 点击卡片选中相册
     card.addEventListener("click", () => {
       loadAlbum(album.id);
@@ -304,7 +342,21 @@ async function loadAlbums() {
     const createCard = document.createElement("button");
     createCard.type = "button";
     createCard.className = "album-card album-card-create";
-    createCard.addEventListener("click", () => ui.fileInput.click());
+    createCard.addEventListener("click", () => {
+      // 清除當前選中的相簿，這樣uploadImages會自動創建新相簿
+      state.album = null;
+      state.images = [];
+      ui.imageList.innerHTML = "";
+      updateEmbed();
+      
+      // 移除所有相簿的選中狀態
+      document.querySelectorAll(".album-card").forEach(card => {
+        card.classList.remove("selected");
+      });
+      
+      // 觸發文件選擇
+      ui.fileInput.click();
+    });
 
     const createContent = document.createElement("div");
     createContent.className = "album-card-create-content";
@@ -324,7 +376,44 @@ async function loadAlbums() {
   }
 }
 
+// 只更新特定相簿卡片的預覽圖像，而不重新渲染整個列表
+async function updateAlbumCardPreview(albumId) {
+  // 找到對應的相簿卡片
+  const albumCard = ui.albumList.querySelector(`[data-album-id="${albumId}"]`);
+  if (!albumCard) {
+    return;
+  }
+
+  // 獲取該相簿的前5張圖片
+  const { data: images } = await supabase
+    .from("images")
+    .select("path")
+    .eq("album_id", albumId)
+    .order("sort_order", { ascending: true })
+    .limit(5);
+
+  // 更新預覽容器
+  const preview = albumCard.querySelector(".album-card-preview");
+  if (preview) {
+    preview.innerHTML = "";
+    preview.className = `album-card-preview count-${Math.min(images?.length || 0, 5)}`;
+    
+    if (images && images.length > 0) {
+      images.slice(0, 5).forEach((img) => {
+        const imgEl = document.createElement("img");
+        imgEl.src = getImageUrl(img.path, { preview: true, quality: '30' });
+        preview.appendChild(imgEl);
+      });
+    } else {
+      preview.style.background = "rgba(255,255,255,0.05)";
+    }
+  }
+}
+
 async function createAlbum(title) {
+  // 從 localStorage 讀取上次的設定
+  const lastSettings = getLastSettings();
+  
   // 如果没有提供标题，自动生成
   if (!title) {
     // 匿名用户使用空名称
@@ -350,13 +439,29 @@ async function createAlbum(title) {
     }
   }
 
+  // 獲取當前最大的 sort_order
+  let maxSortOrder = 0;
+  if (state.user) {
+    const { data: existingAlbums } = await supabase
+      .from("albums")
+      .select("sort_order")
+      .eq("owner_id", state.user.id)
+      .order("sort_order", { ascending: false, nullsFirst: false })
+      .limit(1);
+    
+    if (existingAlbums && existingAlbums.length > 0 && existingAlbums[0].sort_order != null) {
+      maxSortOrder = existingAlbums[0].sort_order;
+    }
+  }
+
   const payload = {
     id: newId(),
     title,
     owner_id: state.user ? state.user.id : null,
-    theme: "slideshow",
-    background_color: ui.bgColor.value.trim() || "#101828",
-    add_new_first: false,
+    theme: lastSettings.theme || "slideshow",
+    background_color: lastSettings.background_color || "#101828",
+    add_new_first: lastSettings.add_new_first || false,
+    sort_order: maxSortOrder + 1,
   };
 
   const { data, error } = await supabase
@@ -373,6 +478,9 @@ async function createAlbum(title) {
   state.album = data;
   ui.themeSelect.value = data.theme || "slideshow";
   ui.bgColor.value = data.background_color || "#101828";
+  if (pickr) {
+    pickr.setColor(data.background_color || "#101828");
+  }
   ui.addNewSelect.value = data.add_new_first ? "first" : "last";
   await loadImages();
   updateEmbed();
@@ -574,6 +682,120 @@ async function updateImageOrder() {
   }
 }
 
+// 相簿拖曳處理函數
+function handleAlbumDragStart(e) {
+  draggedAlbumElement = e.currentTarget;
+  e.currentTarget.style.opacity = "0.4";
+  e.dataTransfer.effectAllowed = "move";
+  e.dataTransfer.setData("text/html", e.currentTarget.innerHTML);
+}
+
+function handleAlbumDragEnter(e) {
+  if (e.currentTarget !== draggedAlbumElement && e.currentTarget.classList.contains('album-card')) {
+    e.currentTarget.style.borderTop = "3px solid var(--accent)";
+  }
+}
+
+function handleAlbumDragLeave(e) {
+  if (e.currentTarget.classList.contains('album-card')) {
+    e.currentTarget.style.borderTop = "";
+  }
+}
+
+function handleAlbumDragOver(e) {
+  e.preventDefault();
+  e.dataTransfer.dropEffect = "move";
+  return false;
+}
+
+async function handleAlbumDrop(e) {
+  e.stopPropagation();
+  e.preventDefault();
+
+  if (draggedAlbumElement !== e.currentTarget && e.currentTarget.classList.contains('album-card')) {
+    const fromId = draggedAlbumElement.dataset.albumId;
+    const toId = e.currentTarget.dataset.albumId;
+    
+    // 獲取當前所有相簿
+    const { data: albums, error } = await supabase
+      .from("albums")
+      .select("id, sort_order")
+      .eq("owner_id", state.user.id)
+      .order("sort_order", { ascending: true, nullsFirst: false })
+      .order("created_at", { ascending: false });
+
+    if (error || !albums) {
+      setStatus('無法更新相簿順序', 'error');
+      return false;
+    }
+
+    // 找到拖曳的相簿索引
+    const fromIndex = albums.findIndex(a => a.id === fromId);
+    const toIndex = albums.findIndex(a => a.id === toId);
+
+    if (fromIndex !== -1 && toIndex !== -1) {
+      // 重新排序
+      const [movedAlbum] = albums.splice(fromIndex, 1);
+      albums.splice(toIndex, 0, movedAlbum);
+
+      // 更新資料庫中的 sort_order
+      await updateAlbumOrder(albums);
+      
+      // 手動更新 DOM 而不是重新載入整個列表
+      const allCards = Array.from(ui.albumList.querySelectorAll('.album-card:not(.album-card-create)'));
+      const fromCard = allCards[fromIndex];
+      const toCard = allCards[toIndex];
+      
+      if (fromCard && toCard) {
+        // 移除拖曳的卡片
+        fromCard.remove();
+        
+        // 在目標位置插入
+        if (fromIndex < toIndex) {
+          // 向下拖曳：插入到目標之後
+          toCard.parentNode.insertBefore(fromCard, toCard.nextSibling);
+        } else {
+          // 向上拖曳：插入到目標之前
+          toCard.parentNode.insertBefore(fromCard, toCard);
+        }
+        
+        // 更新所有卡片的 data-index
+        const updatedCards = Array.from(ui.albumList.querySelectorAll('.album-card:not(.album-card-create)'));
+        updatedCards.forEach((card, idx) => {
+          card.dataset.index = idx;
+        });
+      }
+    }
+  }
+
+  e.currentTarget.style.borderTop = "";
+  return false;
+}
+
+function handleAlbumDragEnd(e) {
+  e.currentTarget.style.opacity = "";
+  e.currentTarget.style.borderTop = "";
+  
+  // 清除所有拖曳樣式
+  document.querySelectorAll(".album-card").forEach(card => {
+    card.style.borderTop = "";
+  });
+}
+
+async function updateAlbumOrder(albums) {
+  const updates = albums.map((album, index) => ({
+    id: album.id,
+    sort_order: index,
+  }));
+
+  for (const update of updates) {
+    await supabase
+      .from("albums")
+      .update({ sort_order: update.sort_order })
+      .eq("id", update.id);
+  }
+}
+
 async function updateCaption(imageId, caption) {
   const { error } = await supabase
     .from("images")
@@ -669,6 +891,10 @@ async function deleteImage(image) {
 
   await supabase.storage.from(BUCKET).remove([image.path]);
   await loadImages();
+  // 刪除圖片後更新相簿卡片預覽
+  if (state.album) {
+    await updateAlbumCardPreview(state.album.id);
+  }
   if (state.album && state.images.length === 0) {
     const deletedAlbumId = state.album.id;
     state.album = null;
@@ -780,6 +1006,10 @@ async function updateSettings() {
   }
 
   state.album = { ...state.album, ...payload };
+  
+  // 儲存設定到 localStorage 以便下次使用
+  saveLastSettings(payload);
+  
   updateEmbed();
 }
 
@@ -897,9 +1127,9 @@ async function uploadImages(files) {
   }
 
   await loadImages();
-  // 只有登入用戶才刷新相簿列表（匿名用戶不需要相簿管理功能）
-  if (state.user) {
-    await loadAlbums();
+  // 只有登入用戶才更新相簿卡片（匿名用戶不需要相簿管理功能）
+  if (state.user && state.album) {
+    await updateAlbumCardPreview(state.album.id);
   }
   updateEmbed();
   setStatus("上傳完成。", 'success');
@@ -1370,9 +1600,17 @@ ui.clearMigrationBtn.addEventListener('click', clearMigration);
   });
   
   pickr.on("save", (color) => {
-    ui.bgColor.value = color.toRGBA().toString();
+    const colorString = color.toHEXA().toString();
+    ui.bgColor.value = colorString;
     updateSettings();
   });
+  
+  // 載入上次的設定到 UI
+  const lastSettings = getLastSettings();
+  ui.themeSelect.value = lastSettings.theme;
+  ui.bgColor.value = lastSettings.background_color;
+  pickr.setColor(lastSettings.background_color);
+  ui.addNewSelect.value = lastSettings.add_new_first ? "first" : "last";
   
   await refreshAuth();
   await loadAlbums();

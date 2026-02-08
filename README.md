@@ -17,6 +17,7 @@
 - theme text (slideshow | thumbnail)
 - background_color text (支援 rgba)
 - add_new_first boolean default false
+- sort_order integer (nullable, 用於拖曳排序)
 - created_at timestamp default now()
 
 ### images
