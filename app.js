@@ -327,9 +327,9 @@ async function loadAlbums() {
 async function createAlbum(title) {
   // 如果没有提供标题，自动生成
   if (!title) {
-    // 匿名用户使用固定名称
+    // 匿名用户使用空名称
     if (!state.user) {
-      title = "我的相簿";
+      title = "";
     } else {
       const { data: albums } = await supabase
         .from("albums")
