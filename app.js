@@ -459,6 +459,13 @@ function renderImages() {
     input.placeholder = "圖片說明";
     input.addEventListener("change", () => updateCaption(image.id, input.value));
 
+    const linkInput = document.createElement("input");
+    linkInput.className = "field image-link-input";
+    linkInput.type = "url";
+    linkInput.value = image.custom_link || "";
+    linkInput.placeholder = "自訂連結";
+    linkInput.addEventListener("change", () => updateImageLink(image.id, linkInput));
+
     const actions = document.createElement("div");
     // 匿名和登入用戶都可以刪除相片
     if (state.album) {
@@ -486,6 +493,7 @@ function renderImages() {
 
     card.appendChild(img);
     card.appendChild(input);
+    card.appendChild(linkInput);
     card.appendChild(actions);
     ui.imageList.appendChild(card);
   });
@@ -584,6 +592,67 @@ async function updateCaption(imageId, caption) {
   }
   
   // 更新预览面板
+  updateEmbed();
+}
+
+function normalizeExternalLink(value) {
+  const trimmed = value.trim();
+  if (!trimmed) {
+    return "";
+  }
+  if (trimmed.startsWith("http://") || trimmed.startsWith("https://")) {
+    return trimmed;
+  }
+  return `https://${trimmed}`;
+}
+
+function isValidExternalLink(value) {
+  try {
+    const url = new URL(value);
+    if (url.protocol !== "http:" && url.protocol !== "https:") {
+      return false;
+    }
+    const hostname = url.hostname;
+    if (!hostname || !hostname.includes(".")) {
+      return false;
+    }
+    if (hostname.startsWith(".") || hostname.endsWith(".")) {
+      return false;
+    }
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+async function updateImageLink(imageId, inputEl) {
+  const rawValue = inputEl.value;
+  const image = state.images.find(img => img.id === imageId);
+  const normalized = normalizeExternalLink(rawValue);
+
+  if (normalized && !isValidExternalLink(normalized)) {
+    setStatus("請填入有效連結。", 'warning');
+    inputEl.value = image?.custom_link || "";
+    return;
+  }
+
+  const payload = { custom_link: normalized || null };
+  const { error } = await supabase
+    .from("images")
+    .update(payload)
+    .eq("id", imageId);
+
+  if (error) {
+    setStatus(error.message, 'error');
+    return;
+  }
+
+  if (image) {
+    image.custom_link = payload.custom_link;
+  }
+
+  inputEl.value = payload.custom_link || "";
+
   updateEmbed();
 }
 
@@ -813,6 +882,7 @@ async function uploadImages(files) {
         album_id: state.album.id,
         path,
         caption: "",
+        custom_link: null,
         sort_order: sortOrder,
         width,
         height,
@@ -1147,6 +1217,7 @@ async function migrateAlbumizrAlbum(albumUrl, albumIndex, totalAlbums) {
             album_id: album.id,
             path,
             caption: image.caption,
+            custom_link: null,
             sort_order: sortOrder,
             width,
             height,

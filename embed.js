@@ -63,6 +63,52 @@ function openBuilder() {
   window.open("https://ebluvu.github.io/gallery-widget/", "_blank", "noopener");
 }
 
+function normalizeExternalLink(value) {
+  if (!value) {
+    return "";
+  }
+  const trimmed = value.trim();
+  if (!trimmed) {
+    return "";
+  }
+  const lower = trimmed.toLowerCase();
+  if (
+    lower.startsWith("http://") ||
+    lower.startsWith("https://") ||
+    lower.startsWith("mailto:") ||
+    lower.startsWith("tel:")
+  ) {
+    return trimmed;
+  }
+  return `https://${trimmed}`;
+}
+
+function createImageLinkButton() {
+  const link = document.createElement("a");
+  link.className = "image-link-btn hidden";
+  link.setAttribute("aria-label", "開啟自訂連結");
+  link.setAttribute("target", "_blank");
+  link.setAttribute("rel", "noopener noreferrer");
+  link.innerHTML = `
+    <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+      <path d="M10.59 13.41a1.99 1.99 0 0 0 2.82 0l3.88-3.88a2 2 0 0 0-2.83-2.83l-1.29 1.3a1 1 0 0 1-1.41-1.42l1.29-1.29a4 4 0 0 1 5.66 5.66l-3.88 3.88a4 4 0 0 1-5.66 0 1 1 0 0 1 1.42-1.42z" />
+      <path d="M13.41 10.59a1.99 1.99 0 0 0-2.82 0l-3.88 3.88a2 2 0 1 0 2.83 2.83l1.29-1.3a1 1 0 0 1 1.41 1.42l-1.29 1.29a4 4 0 0 1-5.66-5.66l3.88-3.88a4 4 0 0 1 5.66 0 1 1 0 1 1-1.42 1.42z" />
+    </svg>
+  `;
+  return link;
+}
+
+function setImageLink(linkEl, value) {
+  const href = normalizeExternalLink(value);
+  if (!href) {
+    linkEl.classList.add("hidden");
+    linkEl.removeAttribute("href");
+    return;
+  }
+  linkEl.href = href;
+  linkEl.classList.remove("hidden");
+}
+
 function toggleFullscreen() {
   if (!document.fullscreenElement) {
     document.documentElement.requestFullscreen().catch(() => {
@@ -234,9 +280,13 @@ function renderSlideshow(album, images) {
   const caption = document.createElement("p");
   caption.className = "slideshow-caption";
   caption.textContent = images[0].caption || "";
+
+  const linkButton = createImageLinkButton();
+  setImageLink(linkButton, images[0].custom_link);
   
   overlayLeft.appendChild(title);
   overlayLeft.appendChild(caption);
+  overlayLeft.appendChild(linkButton);
 
   const overlayRight = document.createElement("div");
   overlayRight.className = "slideshow-overlay-right";
@@ -279,7 +329,6 @@ function renderSlideshow(album, images) {
   overlay.appendChild(overlayRight);
   
   imageWrapper.appendChild(mainImage);
-  imageWrapper.appendChild(overlay);
   
   const prevBtn = document.createElement("button");
   prevBtn.className = "slideshow-btn prev";
@@ -306,6 +355,7 @@ function renderSlideshow(album, images) {
     setPreviewImage(mainImage, images[index].path);
     mainImage.alt = images[index].caption || "";
     caption.textContent = images[index].caption || "";
+    setImageLink(linkButton, images[index].custom_link);
     
     dots.querySelectorAll(".dot").forEach((dot, i) => {
       dot.classList.toggle("active", i === index);
@@ -359,6 +409,7 @@ function renderSlideshow(album, images) {
   });
   mainImage.style.cursor = "pointer";
 
+  container.appendChild(overlay);
   container.appendChild(imageWrapper);
   container.appendChild(prevBtn);
   container.appendChild(nextBtn);
@@ -393,8 +444,12 @@ function renderThumbnail(album, images) {
   caption.className = "thumbnail-caption";
   caption.textContent = images[0].caption || "";
 
+  const linkButton = createImageLinkButton();
+  setImageLink(linkButton, images[0].custom_link);
+
   overlayLeft.appendChild(title);
   overlayLeft.appendChild(caption);
+  overlayLeft.appendChild(linkButton);
 
   const overlayRight = document.createElement("div");
   overlayRight.className = "thumbnail-overlay-right";
@@ -507,6 +562,7 @@ function renderThumbnail(album, images) {
       setPreviewImage(mainImage, image.path);
       mainImage.alt = image.caption || "";
       caption.textContent = image.caption || "";
+      setImageLink(linkButton, image.custom_link);
       thumbBar.querySelectorAll(".thumbnail").forEach((t, j) => {
         t.classList.toggle("active", j === i);
       });
@@ -569,6 +625,7 @@ function renderThumbnail(album, images) {
     setPreviewImage(mainImage, nextImage.path);
     mainImage.alt = nextImage.caption || "";
     caption.textContent = nextImage.caption || "";
+    setImageLink(linkButton, nextImage.custom_link);
     thumbBar.querySelectorAll(".thumbnail").forEach((t, j) => {
       t.classList.toggle("active", j === currentIndex);
     });
