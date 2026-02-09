@@ -647,26 +647,34 @@ function renderThumbnail(album, images) {
 }
 
 // Notion 主題檢測與背景設定
+function isFromNotion() {
+  // 檢查 referrer 是否來自 Notion
+  const referrer = document.referrer.toLowerCase();
+  return referrer.includes('notion.so') || referrer.includes('notion.site');
+}
+
 function updateNotionThemeBackground() {
-  try {
-    const isDark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
-    const notionBg = isDark ? '#191919' : '#ffffff';
-    
-    const themeLayer = document.querySelector('.notion-theme-bg');
-    if (themeLayer) {
+  const themeLayer = document.querySelector('.notion-theme-bg');
+  if (!themeLayer) return;
+  
+  // 只有來自 Notion 時才套用主題檢測
+  if (isFromNotion()) {
+    try {
+      const isDark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
+      const notionBg = isDark ? '#191919' : '#ffffff';
       themeLayer.style.background = notionBg;
-    }
-  } catch (e) {
-    // 如果檢測失敗，使用淺色作為預設
-    const themeLayer = document.querySelector('.notion-theme-bg');
-    if (themeLayer) {
+    } catch (e) {
+      // 如果檢測失敗，使用淺色作為預設
       themeLayer.style.background = '#ffffff';
     }
+  } else {
+    // 非 Notion 環境時，底層設為透明，只顯示用戶自訂背景色
+    themeLayer.style.background = 'transparent';
   }
 }
 
-// 監聽主題變化
-if (window.matchMedia) {
+// 監聽主題變化（只在 Notion 環境中有效）
+if (window.matchMedia && isFromNotion()) {
   window.matchMedia('(prefers-color-scheme: dark)').addListener(updateNotionThemeBackground);
 }
 
