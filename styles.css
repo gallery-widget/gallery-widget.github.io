@@ -926,7 +926,7 @@ h2, h3 {
   font-family: "Space Grotesk", sans-serif;
   margin: 0;
   font-size: clamp(12px, 1.6vw, 14px);
-  color: rgba(255,255,255,0.9);
+  color: white;
 }
 
 .thumbnail-bar-container {
