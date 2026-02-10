@@ -58,6 +58,7 @@ function getLastSettings() {
   return {
     theme: 'slideshow',
     background_color: '#101828',
+    notion_block_color: 'default',
     add_new_first: false
   };
 }
@@ -98,6 +99,7 @@ const ui = {
   embedPreview: document.getElementById("embedPreview"),
   themeSelect: document.getElementById("themeSelect"),
   bgColor: document.getElementById("bgColor"),
+  notionBlockColorSelect: document.getElementById("notionBlockColorSelect"),
   addNewSelect: document.getElementById("addNewSelect"),
   imageList: document.getElementById("imageList"),
   loginModal: document.getElementById("loginModal"),
@@ -460,6 +462,7 @@ async function createAlbum(title) {
     owner_id: state.user ? state.user.id : null,
     theme: lastSettings.theme || "slideshow",
     background_color: lastSettings.background_color || "#101828",
+    notion_block_color: lastSettings.notion_block_color || "default",
     add_new_first: lastSettings.add_new_first || false,
     sort_order: maxSortOrder + 1,
   };
@@ -481,6 +484,7 @@ async function createAlbum(title) {
   if (pickr) {
     pickr.setColor(data.background_color || "#101828");
   }
+  ui.notionBlockColorSelect.value = data.notion_block_color || "default";
   ui.addNewSelect.value = data.add_new_first ? "first" : "last";
   await loadImages();
   updateEmbed();
@@ -505,6 +509,7 @@ async function loadAlbum(albumId) {
   if (pickr) {
     pickr.setColor(data.background_color || "#101828");
   }
+  ui.notionBlockColorSelect.value = data.notion_block_color || "default";
   ui.addNewSelect.value = data.add_new_first ? "first" : "last";
   await loadImages();
   updateEmbed();
@@ -992,6 +997,7 @@ async function updateSettings() {
   const payload = {
     theme: ui.themeSelect.value,
     background_color: ui.bgColor.value.trim() || "#101828",
+    notion_block_color: ui.notionBlockColorSelect.value,
     add_new_first: ui.addNewSelect.value === "first",
   };
 
@@ -1239,6 +1245,7 @@ document.addEventListener("drop", (e) => {
 });
 
 ui.themeSelect.addEventListener("change", updateSettings);
+ui.notionBlockColorSelect.addEventListener("change", updateSettings);
 ui.addNewSelect.addEventListener("change", updateSettings);
 ui.embedCode.addEventListener("click", () => ui.embedCode.select());
 ui.shareLink.addEventListener("click", () => ui.shareLink.select());
@@ -1610,6 +1617,7 @@ ui.clearMigrationBtn.addEventListener('click', clearMigration);
   ui.themeSelect.value = lastSettings.theme;
   ui.bgColor.value = lastSettings.background_color;
   pickr.setColor(lastSettings.background_color);
+  ui.notionBlockColorSelect.value = lastSettings.notion_block_color;
   ui.addNewSelect.value = lastSettings.add_new_first ? "first" : "last";
   
   await refreshAuth();

@@ -377,8 +377,8 @@ async function loadAlbum(albumId) {
   document.body.style.background = userBgColor;
   document.documentElement.style.background = userBgColor;
   
-  // 設定底層 Notion 主題背景（會根據系統深淺色主題更新）
-  updateNotionThemeBackground();
+  // 設定底層 Notion 主題背景（使用相簿設定中的 notion_block_color）
+  updateNotionThemeBackground(album.notion_block_color || 'default');
   
   ui.grid.className = `embed-grid ${album.theme || "slideshow"}`;
 
@@ -694,24 +694,64 @@ function isFromNotion() {
   return referrer.includes('notion.so') || referrer.includes('notion.site');
 }
 
+// Notion 區塊顏色映射表（深淺模式）
+const NOTION_BLOCK_COLORS = {
+  default: {
+    dark: '#191919',
+    light: '#ffffff'
+  },
+  gray: {
+    dark: '#383836',
+    light: '#d4d3cf'
+  },
+  red: {
+    dark: '#502c29',
+    light: '#f0c5be'
+  },
+  orange: {
+    dark: '#53361f',
+    light: '#eaccb2'
+  },
+  yellow: {
+    dark: '#504425',
+    light: '#e8d497'
+  },
+  green: {
+    dark: '#263d30',
+    light: '#bed9c9'
+  },
+  teal: {
+    dark: '#143d45',
+    light: '#b0dbe4'
+  },
+  blue: {
+    dark: '#1e3a5f',
+    light: '#a8d8f0'
+  },
+  purple: {
+    dark: '#3c2d47',
+    light: '#dbc8e8'
+  },
+  pink: {
+    dark: '#4e2b3c',
+    light: '#eac4d5'
+  }
+};
+
 /**
  * 檢測背景色
- * 由於 Notion 跨域限制，無法讀取區塊背景色
- * 改用系統深淺色主題作為 Notion 環境的背景色備案
  */
-function detectActualBackgroundColor() {
+function detectActualBackgroundColor(notionBlockColor = 'default') {
   try {
-    // 根據系統深/淺模式選擇對應背景色
     const isDark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
-    const themeColor = isDark ? '#191919' : '#ffffff';
-    return themeColor;
+    const colorObj = NOTION_BLOCK_COLORS[notionBlockColor] || NOTION_BLOCK_COLORS.default;
+    return isDark ? colorObj.dark : colorObj.light;
   } catch (e) {
-    console.warn('[背景檢測] ✗ 檢測失敗:', e);
     return '#ffffff';
   }
 }
 
-function updateNotionThemeBackground() {
+function updateNotionThemeBackground(notionBlockColor = 'default') {
   const themeLayer = document.querySelector('.notion-theme-bg');
   
   if (!themeLayer) {
@@ -720,7 +760,7 @@ function updateNotionThemeBackground() {
   
   // 只有來自 Notion 時才套用主題檢測
   if (isFromNotion()) {
-    const actualBgColor = detectActualBackgroundColor();
+    const actualBgColor = detectActualBackgroundColor(notionBlockColor);
     themeLayer.style.background = actualBgColor;
   } else {
     // 非 Notion 環境時，底層設為透明，只顯示用戶自訂背景色
@@ -730,11 +770,21 @@ function updateNotionThemeBackground() {
 
 // 監聽主題變化（只在 Notion 環境中有效）
 if (window.matchMedia && isFromNotion()) {
-  window.matchMedia('(prefers-color-scheme: dark)').addListener(updateNotionThemeBackground);
+  window.matchMedia('(prefers-color-scheme: dark)').addListener(() => {
+    // 需要重新取得相簿設定中的 notion_block_color
+    const albumId = getAlbumId();
+    if (albumId) {
+      supabase
+        .from('albums')
+        .select('notion_block_color')
+        .eq('id', albumId)
+        .single()
+        .then(({ data }) => {
+          updateNotionThemeBackground(data?.notion_block_color || 'default');
+        });
+    }
+  });
 }
-
-// 初始化主題背景
-updateNotionThemeBackground();
 
 const albumId = getAlbumId();
 if (!albumId) {
