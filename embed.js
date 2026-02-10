@@ -98,6 +98,155 @@ function createImageLinkButton() {
   return link;
 }
 
+/* ============================================
+   共用工廠函數 - 減少主題間重複代碼
+   ============================================ */
+
+/**
+ * 創建選單系統
+ * @param {HTMLElement} container - 使用者互動的容器（用於點擊關閉）
+ * @param {string} menuClass - 選單樣式類名（如 "slideshow-menu"）
+ * @param {Array<{label, action}>} menuItems - 選單項目
+ * @returns {Object} 包含 menu、menuButton、toggle、close 函數
+ */
+function createMenuSystem(container, menuClass, menuItems) {
+  const menuButton = document.createElement("button");
+  menuButton.type = "button";
+  menuButton.className = menuClass.replace("menu", "menu-btn");
+  menuButton.setAttribute("aria-label", "開啟選單");
+  menuButton.textContent = "⋯";
+
+  const menu = document.createElement("div");
+  menu.className = menuClass;
+  menu.setAttribute("role", "menu");
+  menu.setAttribute("aria-hidden", "true");
+
+  const toggleMenu = () => {
+    const isOpen = menu.classList.toggle("open");
+    menu.setAttribute("aria-hidden", !isOpen);
+  };
+
+  const closeMenu = () => {
+    if (document.activeElement && menu.contains(document.activeElement)) {
+      document.activeElement.blur();
+    }
+    menu.classList.remove("open");
+    menu.setAttribute("aria-hidden", "true");
+  };
+
+  // 創建選單項目
+  menuItems.forEach((item) => {
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = menuClass.replace("menu", "menu-item");
+    btn.textContent = item.label;
+    btn.addEventListener("click", () => {
+      item.action();
+      closeMenu();
+    });
+    menu.appendChild(btn);
+  });
+
+  // 設置事件監聽
+  menuButton.addEventListener("click", (event) => {
+    event.stopPropagation();
+    toggleMenu();
+  });
+
+  container.addEventListener("click", (event) => {
+    if (!menu.contains(event.target) && !menuButton.contains(event.target)) {
+      closeMenu();
+    }
+  });
+
+  container.addEventListener("keydown", (event) => {
+    if (event.key === "Escape") {
+      closeMenu();
+    }
+  });
+
+  return { menu, menuButton, toggleMenu, closeMenu };
+}
+
+/**
+ * 創建幻燈片控制器
+ * @param {HTMLElement} imagesScroll - 圖片捲動容器
+ * @param {Array} images - 圖片數據
+ * @param {Object} ui - UI 元素 { caption, linkButton, indicators, thumbBar?, scrollThumbBarToIndex? }
+ * @returns {Object} { goToSlide, currentIndex }
+ */
+function createCarouselController(imagesScroll, images, ui) {
+  let currentIndex = 0;
+  let isAnimating = false;
+
+  const goToSlide = (newIndex) => {
+    if (isAnimating || newIndex === currentIndex) return;
+    isAnimating = true;
+
+    // 計算捲動距離（負值向左移動）
+    const translateX = -(newIndex * 100);
+    imagesScroll.style.transform = `translateX(${translateX}%)`;
+
+    // 更新字幕和連結按鈕
+    ui.caption.textContent = images[newIndex].caption || "";
+    setImageLink(ui.linkButton, images[newIndex].custom_link);
+
+    // 更新指示器（dots 或 thumbnails）
+    if (ui.indicators && Array.isArray(ui.indicators)) {
+      ui.indicators.forEach((indicator, i) => {
+        indicator.classList.toggle("active", i === newIndex);
+      });
+    }
+
+    // 如果有縮圖條，自動捲動到選中位置
+    if (ui.thumbBar && ui.scrollThumbBarToIndex) {
+      ui.scrollThumbBarToIndex(newIndex);
+    }
+
+    // 動畫完成後更新狀態
+    setTimeout(() => {
+      currentIndex = newIndex;
+      isAnimating = false;
+    }, 500);
+  };
+
+  return { goToSlide, get currentIndex() { return currentIndex; } };
+}
+
+/**
+ * 設置導航按鈕
+ * @param {HTMLElement} prevBtn - 上一張按鈕
+ * @param {HTMLElement} nextBtn - 下一張按鈕
+ * @param {HTMLElement} imageWrapper - 大圖容器（用於點擊事件）
+ * @param {Function} goToSlide - 切換函數
+ * @param {number} imageCount - 圖片總數
+ * @param {Function} getCurrentIndex - 獲取當前索引
+ */
+function setupNavigation(prevBtn, nextBtn, imageWrapper, goToSlide, imageCount, getCurrentIndex) {
+  prevBtn.addEventListener("click", () => {
+    const currentIndex = getCurrentIndex();
+    const newIndex = (currentIndex - 1 + imageCount) % imageCount;
+    goToSlide(newIndex);
+  });
+
+  nextBtn.addEventListener("click", () => {
+    const currentIndex = getCurrentIndex();
+    const newIndex = (currentIndex + 1) % imageCount;
+    goToSlide(newIndex);
+  });
+
+  // 點擊大圖自動輪替到下一張
+  imageWrapper.addEventListener("click", () => {
+    const currentIndex = getCurrentIndex();
+    const newIndex = (currentIndex + 1) % imageCount;
+    goToSlide(newIndex);
+  });
+  imageWrapper.style.cursor = "pointer";
+
+  return { prevBtn, nextBtn };
+}
+
+
 function setImageLink(linkEl, value) {
   const href = normalizeExternalLink(value);
   if (!href) {
@@ -268,10 +417,21 @@ function renderSlideshow(album, images) {
   const imageWrapper = document.createElement("div");
   imageWrapper.className = "slideshow-image-wrapper";
   
-  const mainImage = document.createElement("img");
-  mainImage.className = "slideshow-main";
-  setPreviewImage(mainImage, images[0].path);
-  mainImage.alt = images[0].caption || "";
+  // 建立滾動容器，包含所有圖片
+  const imagesScroll = document.createElement("div");
+  imagesScroll.className = "slideshow-images-scroll";
+  
+  images.forEach((image) => {
+    const slide = document.createElement("div");
+    slide.className = "slideshow-image-slide";
+    
+    const img = document.createElement("img");
+    setPreviewImage(img, image.path);
+    img.alt = image.caption || "";
+    
+    slide.appendChild(img);
+    imagesScroll.appendChild(slide);
+  });
   
   const overlay = document.createElement("div");
   overlay.className = "slideshow-overlay";
@@ -297,45 +457,7 @@ function renderSlideshow(album, images) {
   const overlayRight = document.createElement("div");
   overlayRight.className = "slideshow-overlay-right";
 
-  const menuButton = document.createElement("button");
-  menuButton.className = "slideshow-menu-btn";
-  menuButton.type = "button";
-  menuButton.setAttribute("aria-label", "開啟選單");
-  menuButton.textContent = "⋯";
-
-  const menu = document.createElement("div");
-  menu.className = "slideshow-menu";
-  menu.setAttribute("role", "menu");
-  menu.setAttribute("aria-hidden", "true");
-
-  const menuItems = [
-    { label: "全螢幕", action: () => toggleFullscreen() },
-    { label: "開啟圖片", action: () => openCurrentImage(() => images[currentIndex]) },
-    { label: "另存圖片", action: () => downloadCurrentImage(() => images[currentIndex]) },
-    { label: "複製圖片", action: () => copyCurrentImage(() => images[currentIndex]) },
-    { label: "建立你的相簿", action: () => openBuilder() },
-  ];
-
-  menuItems.forEach((item) => {
-    const btn = document.createElement("button");
-    btn.type = "button";
-    btn.className = "slideshow-menu-item";
-    btn.textContent = item.label;
-    btn.addEventListener("click", () => {
-      item.action();
-      closeMenu();
-    });
-    menu.appendChild(btn);
-  });
-
-  overlayRight.appendChild(menuButton);
-  overlayRight.appendChild(menu);
-  
-  overlay.appendChild(overlayLeft);
-  overlay.appendChild(overlayRight);
-  
-  imageWrapper.appendChild(mainImage);
-  
+  // 建立導航按鈕
   const prevBtn = document.createElement("button");
   prevBtn.className = "slideshow-btn prev";
   prevBtn.textContent = "‹";
@@ -344,76 +466,49 @@ function renderSlideshow(album, images) {
   nextBtn.className = "slideshow-btn next";
   nextBtn.textContent = "›";
   
+  // 建立 dots
   const dots = document.createElement("div");
   dots.className = "slideshow-dots";
-  
-  let currentIndex = 0;
   
   images.forEach((image, i) => {
     const dot = document.createElement("span");
     dot.className = i === 0 ? "dot active" : "dot";
-    dot.addEventListener("click", () => goToSlide(i));
     dots.appendChild(dot);
   });
   
-  function goToSlide(index) {
-    currentIndex = index;
-    setPreviewImage(mainImage, images[index].path);
-    mainImage.alt = images[index].caption || "";
-    caption.textContent = images[index].caption || "";
-    setImageLink(linkButton, images[index].custom_link);
-    
-    dots.querySelectorAll(".dot").forEach((dot, i) => {
-      dot.classList.toggle("active", i === index);
-    });
-  }
-
-  function toggleMenu() {
-    const isOpen = menu.classList.toggle("open");
-    menu.setAttribute("aria-hidden", !isOpen);
-  }
-
-  function closeMenu() {
-    if (document.activeElement && menu.contains(document.activeElement)) {
-      document.activeElement.blur();
-    }
-    menu.classList.remove("open");
-    menu.setAttribute("aria-hidden", "true");
-  }
-
-  menuButton.addEventListener("click", (event) => {
-    event.stopPropagation();
-    toggleMenu();
-  });
-
-  container.addEventListener("click", (event) => {
-    if (!menu.contains(event.target) && !menuButton.contains(event.target)) {
-      closeMenu();
-    }
-  });
-
-  container.addEventListener("keydown", (event) => {
-    if (event.key === "Escape") {
-      closeMenu();
-    }
+  // 建立幻燈片控制器
+  const carousel = createCarouselController(imagesScroll, images, {
+    caption,
+    linkButton,
+    indicators: Array.from(dots.querySelectorAll(".dot"))
   });
   
-  prevBtn.addEventListener("click", () => {
-    currentIndex = (currentIndex - 1 + images.length) % images.length;
-    goToSlide(currentIndex);
+  // 塞 dots 點擊事件
+  dots.querySelectorAll(".dot").forEach((dot, i) => {
+    dot.addEventListener("click", () => carousel.goToSlide(i));
   });
   
-  nextBtn.addEventListener("click", () => {
-    currentIndex = (currentIndex + 1) % images.length;
-    goToSlide(currentIndex);
-  });
+  // 建立菜單系統
+  const menuItems = [
+    { label: "全螢幕", action: () => toggleFullscreen() },
+    { label: "開啟圖片", action: () => openCurrentImage(() => images[carousel.currentIndex]) },
+    { label: "另存圖片", action: () => downloadCurrentImage(() => images[carousel.currentIndex]) },
+    { label: "複製圖片", action: () => copyCurrentImage(() => images[carousel.currentIndex]) },
+    { label: "建立你的相簿", action: () => openBuilder() },
+  ];
+  
+  const { menu, menuButton } = createMenuSystem(container, "slideshow-menu", menuItems);
 
-  // 點擊大圖自動輪替到下一張
-  mainImage.addEventListener("click", () => {
-    currentIndex = (currentIndex + 1) % images.length;
-    goToSlide(currentIndex);
-  });
-  mainImage.style.cursor = "pointer";
+  overlayRight.appendChild(menuButton);
+  overlayRight.appendChild(menu);
+  
+  overlay.appendChild(overlayLeft);
+  overlay.appendChild(overlayRight);
+  
+  imageWrapper.appendChild(imagesScroll);
+  
+  // 設置導航
+  setupNavigation(prevBtn, nextBtn, imageWrapper, carousel.goToSlide, images.length, () => carousel.currentIndex);
 
   container.appendChild(overlay);
   container.appendChild(imageWrapper);
@@ -424,17 +519,26 @@ function renderSlideshow(album, images) {
 }
 
 function renderThumbnail(album, images) {
-  // 大图容器
   const mainContainer = document.createElement("div");
   mainContainer.className = "thumbnail-main-container";
   
   const imageWrapper = document.createElement("div");
   imageWrapper.className = "thumbnail-image-wrapper";
   
-  const mainImage = document.createElement("img");
-  mainImage.className = "thumbnail-main";
-  setPreviewImage(mainImage, images[0].path);
-  mainImage.alt = images[0].caption || "";
+  const imagesScroll = document.createElement("div");
+  imagesScroll.className = "thumbnail-images-scroll";
+  
+  images.forEach((image) => {
+    const slide = document.createElement("div");
+    slide.className = "thumbnail-image-slide";
+    
+    const img = document.createElement("img");
+    setPreviewImage(img, image.path);
+    img.alt = image.caption || "";
+    
+    slide.appendChild(img);
+    imagesScroll.appendChild(slide);
+  });
   
   const overlay = document.createElement("div");
   overlay.className = "thumbnail-overlay";
@@ -460,88 +564,24 @@ function renderThumbnail(album, images) {
   const overlayRight = document.createElement("div");
   overlayRight.className = "thumbnail-overlay-right";
 
-  const menuButton = document.createElement("button");
-  menuButton.className = "thumbnail-menu-btn";
-  menuButton.type = "button";
-  menuButton.setAttribute("aria-label", "開啟選單");
-  menuButton.textContent = "⋯";
-
-  const menu = document.createElement("div");
-  menu.className = "thumbnail-menu";
-  menu.setAttribute("role", "menu");
-  menu.setAttribute("aria-hidden", "true");
-
-  const menuItems = [
-    { label: "全螢幕", action: () => toggleFullscreen() },
-    { label: "開啟圖片", action: () => openCurrentImage(() => images[currentIndex]) },
-    { label: "另存圖片", action: () => downloadCurrentImage(() => images[currentIndex]) },
-    { label: "複製圖片", action: () => copyCurrentImage(() => images[currentIndex]) },
-    { label: "建立你的相簿", action: () => openBuilder() },
-  ];
-
-  menuItems.forEach((item) => {
-    const btn = document.createElement("button");
-    btn.type = "button";
-    btn.className = "thumbnail-menu-item";
-    btn.textContent = item.label;
-    btn.addEventListener("click", () => {
-      item.action();
-      closeMenu();
-    });
-    menu.appendChild(btn);
-  });
-
-  overlayRight.appendChild(menuButton);
-  overlayRight.appendChild(menu);
-
-  overlay.appendChild(overlayLeft);
-  overlay.appendChild(overlayRight);
-  
-  imageWrapper.appendChild(mainImage);
-  imageWrapper.appendChild(overlay);
-  mainContainer.appendChild(imageWrapper);
-  
-  // 缩略图容器
+  // 縮略圖容器
   const thumbContainer = document.createElement("div");
   thumbContainer.className = "thumbnail-bar-container";
   
   const thumbBar = document.createElement("div");
   thumbBar.className = "thumbnail-bar";
   
-  let currentIndex = 0;
-
-  function toggleMenu() {
-    const isOpen = menu.classList.contains("open");
-    menu.classList.toggle("open", !isOpen);
-    menu.setAttribute("aria-hidden", isOpen ? "true" : "false");
-  }
-
-  function closeMenu() {
-    if (document.activeElement && menu.contains(document.activeElement)) {
-      document.activeElement.blur();
-    }
-    menu.classList.remove("open");
-    menu.setAttribute("aria-hidden", "true");
-  }
-
-  menuButton.addEventListener("click", (event) => {
-    event.stopPropagation();
-    toggleMenu();
-  });
-
-  mainContainer.addEventListener("click", (event) => {
-    if (!menu.contains(event.target) && !menuButton.contains(event.target)) {
-      closeMenu();
-    }
-  });
-
-  mainContainer.addEventListener("keydown", (event) => {
-    if (event.key === "Escape") {
-      closeMenu();
-    }
+  // 建立縮略圖
+  images.forEach((image, i) => {
+    const thumb = document.createElement("img");
+    thumb.className = i === 0 ? "thumbnail active" : "thumbnail";
+    thumb.dataset.index = i;
+    thumb.src = getImageUrl(image.path, { preview: true, quality: '20' });
+    thumb.alt = image.caption || "";
+    thumbBar.appendChild(thumb);
   });
   
-  // 辅助函数：平滑滚动缩略图条到选中位置（不触发页面滚动）
+  // 輔助函數：平滑捲動縮略圖條到選中位置
   const scrollThumbBarToIndex = (index) => {
     const thumb = thumbBar.querySelector(`[data-index="${index}"]`);
     if (!thumb) return;
@@ -549,44 +589,59 @@ function renderThumbnail(album, images) {
     const thumbLeft = thumb.offsetLeft;
     const thumbWidth = thumb.offsetWidth;
     const barWidth = thumbBar.clientWidth;
-    
-    // 计算要滚动到的位置，使缩图在中央
     const targetScroll = thumbLeft + thumbWidth / 2 - barWidth / 2;
-    
-    // 直接设置 scrollLeft，CSS 的 scroll-behavior: smooth 会自动平滑过渡
     thumbBar.scrollLeft = targetScroll;
   };
   
-  images.forEach((image, i) => {
-    const thumb = document.createElement("img");
-    thumb.className = i === 0 ? "thumbnail active" : "thumbnail";
-    thumb.dataset.index = i;
-    thumb.src = getImageUrl(image.path, { preview: true, quality: '20' });
-    thumb.alt = image.caption || "";
-    thumb.addEventListener("click", () => {
-      currentIndex = i;
-      setPreviewImage(mainImage, image.path);
-      mainImage.alt = image.caption || "";
-      caption.textContent = image.caption || "";
-      setImageLink(linkButton, image.custom_link);
-      thumbBar.querySelectorAll(".thumbnail").forEach((t, j) => {
-        t.classList.toggle("active", j === i);
-      });
-      // 自动滚动缩略图条到选中位置
-      scrollThumbBarToIndex(i);
-    });
-    thumbBar.appendChild(thumb);
+  // 建立幻燈片控制器
+  const thumbnails = Array.from(thumbBar.querySelectorAll(".thumbnail"));
+  const carousel = createCarouselController(imagesScroll, images, {
+    caption,
+    linkButton,
+    indicators: thumbnails,
+    thumbBar,
+    scrollThumbBarToIndex
   });
   
-  // 等待所有縮圖加載完成後再檢查對齐
-  // 這樣可以確保 scrollWidth 和 clientWidth 都有正確的值
+  // 為縮略圖添加點擊事件
+  thumbnails.forEach((thumb, i) => {
+    thumb.addEventListener("click", () => carousel.goToSlide(i));
+  });
+  
+  // 建立菜單系統
+  const menuItems = [
+    { label: "全螢幕", action: () => toggleFullscreen() },
+    { label: "開啟圖片", action: () => openCurrentImage(() => images[carousel.currentIndex]) },
+    { label: "另存圖片", action: () => downloadCurrentImage(() => images[carousel.currentIndex]) },
+    { label: "複製圖片", action: () => copyCurrentImage(() => images[carousel.currentIndex]) },
+    { label: "建立你的相簿", action: () => openBuilder() },
+  ];
+  
+  const { menu, menuButton } = createMenuSystem(mainContainer, "thumbnail-menu", menuItems);
+
+  overlayRight.appendChild(menuButton);
+  overlayRight.appendChild(menu);
+
+  overlay.appendChild(overlayLeft);
+  overlay.appendChild(overlayRight);
+  
+  imageWrapper.appendChild(imagesScroll);
+  imageWrapper.appendChild(overlay);
+  mainContainer.appendChild(imageWrapper);
+  
+  // 設定縮略圖條對齐
+  const updateThumbBarAlignment = () => {
+    const hasScroll = thumbBar.scrollWidth > thumbBar.clientWidth;
+    thumbBar.style.justifyContent = hasScroll ? "flex-start" : "center";
+  };
+  
+  // 等待所有縮圖載入完成
   let loadedCount = 0;
   const imageTotal = images.length;
   
   const checkAlignmentWhenReady = () => {
     loadedCount++;
     if (loadedCount === imageTotal) {
-      // 所有圖片加載完成，使用 requestAnimationFrame 確保最終佈局已計算
       requestAnimationFrame(() => {
         requestAnimationFrame(() => {
           updateThumbBarAlignment();
@@ -595,10 +650,9 @@ function renderThumbnail(album, images) {
     }
   };
   
-  // 為每個縮圖添加 load 和 error 事件監聽器
-  thumbBar.querySelectorAll('.thumbnail').forEach((thumb) => {
+  // 為每個縮圖添加載入事件
+  thumbnails.forEach((thumb) => {
     if (thumb.complete) {
-      // 圖片已從緩存加載或已失敗
       checkAlignmentWhenReady();
     } else {
       thumb.addEventListener('load', checkAlignmentWhenReady, { once: true });
@@ -606,39 +660,27 @@ function renderThumbnail(album, images) {
     }
   });
   
-  // 檢測是否有滾動條，動態改變對齐方式
-  // 使用 requestAnimationFrame 確保 DOM 已完全渲染
-  const updateThumbBarAlignment = () => {
-    const hasScroll = thumbBar.scrollWidth > thumbBar.clientWidth;
-    thumbBar.style.justifyContent = hasScroll ? "flex-start" : "center";
-  };
-  
-  // 使用 ResizeObserver 監視寬度變化（當窗口縮放時跟著改變）
+  // 監視視窗寬度變化
   const resizeObserver = new ResizeObserver(() => {
     updateThumbBarAlignment();
   });
   resizeObserver.observe(thumbBar);
   
-  // 備用超時檢查，確保即使圖片加載事件未觸發也能設定對齐
+  // 備用超時檢查
   setTimeout(() => {
     updateThumbBarAlignment();
   }, 1000);
   
-  // 點擊大圖自動輪替到下一張
-  mainImage.addEventListener("click", () => {
-    currentIndex = (currentIndex + 1) % images.length;
-    const nextImage = images[currentIndex];
-    setPreviewImage(mainImage, nextImage.path);
-    mainImage.alt = nextImage.caption || "";
-    caption.textContent = nextImage.caption || "";
-    setImageLink(linkButton, nextImage.custom_link);
-    thumbBar.querySelectorAll(".thumbnail").forEach((t, j) => {
-      t.classList.toggle("active", j === currentIndex);
-    });
-    // 自動滾動縮圖條到當前位置
-    scrollThumbBarToIndex(currentIndex);
-  });
-  mainImage.style.cursor = "pointer";
+  // 設置導航
+  const prevBtn = document.createElement("button");
+  prevBtn.className = "slideshow-btn prev";
+  prevBtn.textContent = "‹";
+  
+  const nextBtn = document.createElement("button");
+  nextBtn.className = "slideshow-btn next";
+  nextBtn.textContent = "›";
+  
+  setupNavigation(prevBtn, nextBtn, imageWrapper, carousel.goToSlide, images.length, () => carousel.currentIndex);
   
   thumbContainer.appendChild(thumbBar);
   
