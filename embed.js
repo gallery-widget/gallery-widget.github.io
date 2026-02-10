@@ -745,7 +745,16 @@ function detectActualBackgroundColor(notionBlockColor = 'default') {
   try {
     const isDark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
     const colorObj = NOTION_BLOCK_COLORS[notionBlockColor] || NOTION_BLOCK_COLORS.default;
-    return isDark ? colorObj.dark : colorObj.light;
+    const resolvedColor = isDark ? colorObj.dark : colorObj.light;
+
+    if (notionBlockColor === 'default' && isDark) {
+      const referrer = document.referrer.toLowerCase();
+      if (referrer.includes('pm=c') || referrer.includes('pm=s')) {
+        return '#202020';
+      }
+    }
+
+    return resolvedColor;
   } catch (e) {
     return '#ffffff';
   }
