@@ -752,10 +752,11 @@ function detectActualBackgroundColor(notionBlockColor = 'default') {
     console.log('[背景檢測] resolvedColor:', resolvedColor);
 
     if (notionBlockColor === 'default' && isDark) {
-      // 檢查是否在 Notion 預覽模式（置中或側邊預覽）
-      const htmlStyle = document.documentElement.getAttribute('style');
-      console.log('[背景檢測] htmlStyle:', htmlStyle);
-      const isNotionPreviewMode = htmlStyle?.includes('--full-viewport-height');
+      // 檢查是否在 Notion 預覽模式
+      // 預覽模式下 body 會有 notion-body class
+      const bodyClass = document.body.className;
+      const isNotionPreviewMode = bodyClass.includes('notion-body');
+      console.log('[背景檢測] body.className:', bodyClass);
       console.log('[背景檢測] isNotionPreviewMode:', isNotionPreviewMode);
       if (isNotionPreviewMode) {
         console.log('[背景檢測] ✓ 使用預覽模式深色 #202020');
