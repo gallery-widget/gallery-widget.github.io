@@ -213,6 +213,37 @@ function renderAuth() {
   }
 }
 
+// 轉移匿名相簿到登入用戶
+async function transferAnonymousAlbums(userId) {
+  try {
+    const anonymousAlbumId = localStorage.getItem('anonymousAlbumId');
+    
+    if (!anonymousAlbumId) {
+      return;
+    }
+    
+    showToast('正在轉移匿名相簿...', 'info', 2000);
+    
+    // 更新相簿的 owner_id
+    const { error } = await supabase
+      .from('albums')
+      .update({ owner_id: userId })
+      .eq('id', anonymousAlbumId)
+      .is('owner_id', null);
+    
+    if (error) {
+      console.error('轉移匿名相簿失敗:', error);
+      showToast('轉移相簿時發生錯誤', 'error');
+    } else {
+      showToast('成功保留相簿！', 'success');
+      // 清除記錄
+      localStorage.removeItem('anonymousAlbumId');
+    }
+  } catch (e) {
+    console.error('處理匿名相簿轉移時發生錯誤:', e);
+  }
+}
+
 async function loadAlbums() {
   const runId = ++loadAlbumsRun;
   ui.albumList.innerHTML = "";
@@ -476,6 +507,15 @@ async function createAlbum(title) {
   if (error) {
     setStatus(error.message, 'error');
     return null;
+  }
+
+  // 如果是匿名用戶創建的相簿，記錄當前相簿 ID 到 localStorage 以便登入時轉移
+  if (!state.user && data) {
+    try {
+      localStorage.setItem('anonymousAlbumId', data.id);
+    } catch (e) {
+      console.warn('無法記錄匿名相簿:', e);
+    }
   }
 
   state.album = data;
@@ -1257,13 +1297,19 @@ document.addEventListener("keydown", (e) => {
   }
 });
 
-supabase.auth.onAuthStateChange((event, session) => {
+supabase.auth.onAuthStateChange(async (_event, session) => {
   const newUserId = session?.user?.id || null;
   const oldUserId = state.user?.id || null;
   
   // 只有在用户真正变化时才重新加载（避免页面刷新时重复加载）
   if (newUserId !== oldUserId) {
     state.user = session?.user || null;
+    
+    // 如果用戶剛登入，檢查是否有匿名相簿需要轉移
+    if (newUserId && !oldUserId) {
+      await transferAnonymousAlbums(newUserId);
+    }
+    
     renderAuth();
     loadAlbums();
     updateEmbed();
