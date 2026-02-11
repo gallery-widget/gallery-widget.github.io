@@ -4,7 +4,13 @@ const SUPABASE_URL = "https://eooudvssawtdtttrwyfr.supabase.co";
 const SUPABASE_ANON_KEY = "sb_publishable_sX69Y-P_n8QgAkrcb8gGtQ_FoKhG9mj";
 const BUCKET = "album";
 
-const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+  auth: {
+    autoRefreshToken: false,
+    persistSession: false,
+    detectSessionInUrl: false,
+  },
+});
 
 // 圖片URL輔助函數：為預覽生成優化版本，為下載/開啟保留原圖
 function encodeStoragePath(path) {
@@ -368,16 +374,17 @@ async function copyCurrentImage(getCurrentImageFn) {
 }
 
 async function loadAlbum(albumId) {
-  const { data: album, error } = await supabase
-    .from("albums")
-    .select("*")
-    .eq("id", albumId)
-    .single();
+  try {
+    const { data: album, error } = await supabase
+      .from("albums")
+      .select("*")
+      .eq("id", albumId)
+      .single();
 
-  if (error || !album) {
-    ui.grid.textContent = "Album not found.";
-    return;
-  }
+    if (error || !album) {
+      ui.grid.textContent = "Album not found.";
+      return;
+    }
 
   // 雙層背景系統：底層是 Notion 主題色（系統深淺色），上層是用戶自訂色
   const userBgColor = album.background_color || "#0c1117";
@@ -390,30 +397,34 @@ async function loadAlbum(albumId) {
   
   ui.grid.className = `embed-grid ${album.theme || "slideshow"}`;
 
-  const { data: images, error: imageError } = await supabase
-    .from("images")
-    .select("*")
-    .eq("album_id", albumId)
-    .order("sort_order", { ascending: true });
+    const { data: images, error: imageError } = await supabase
+      .from("images")
+      .select("*")
+      .eq("album_id", albumId)
+      .order("sort_order", { ascending: true });
 
-  if (imageError) {
-    ui.grid.textContent = imageError.message;
-    return;
-  }
+    if (imageError) {
+      ui.grid.textContent = imageError.message;
+      return;
+    }
 
-  if (!images.length) {
-    ui.grid.textContent = "No images";
-    return;
-  }
+    if (!images.length) {
+      ui.grid.textContent = "No images";
+      return;
+    }
 
-  const theme = album.theme || "slideshow";
-  
-  ui.grid.innerHTML = "";
-  
-  if (theme === "slideshow") {
-    renderSlideshow(album, images);
-  } else if (theme === "thumbnail") {
-    renderThumbnail(album, images);
+    const theme = album.theme || "slideshow";
+    
+    ui.grid.innerHTML = "";
+    
+    if (theme === "slideshow") {
+      renderSlideshow(album, images);
+    } else if (theme === "thumbnail") {
+      renderThumbnail(album, images);
+    }
+  } catch (error) {
+    console.error("載入相簿失敗:", error);
+    ui.grid.textContent = "載入失敗，請稍後重試。";
   }
 }
 
