@@ -171,7 +171,8 @@ function createMenuSystem(container, menuClass, menuItems) {
     btn.type = "button";
     btn.className = menuClass.replace("menu", "menu-item");
     btn.textContent = item.label;
-    btn.addEventListener("click", () => {
+    btn.addEventListener("click", (event) => {
+      event.stopPropagation(); // 阻止事件冒泡，防止觸發圖片切換
       item.action();
       closeMenu();
     });
