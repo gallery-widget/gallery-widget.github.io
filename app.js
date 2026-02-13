@@ -1,4 +1,6 @@
 import { createClient } from "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm";
+import { R2_CONFIG } from './r2-config.js';
+import { uploadToR2, deleteFromR2, isR2Url, extractFilenameFromR2Url } from './r2-helper.js';
 
 const SUPABASE_URL = "https://eooudvssawtdtttrwyfr.supabase.co";
 const SUPABASE_ANON_KEY = "sb_publishable_sX69Y-P_n8QgAkrcb8gGtQ_FoKhG9mj";
@@ -23,13 +25,19 @@ function encodeStoragePath(path) {
   return path.split("/").map(encodeURIComponent).join("/");
 }
 
-function getImageUrl(path, options = {}) {
-  const url = supabase.storage.from(BUCKET).getPublicUrl(path).data.publicUrl;
+function getImageUrl(pathOrUrl, options = {}) {
+  // 如果是 R2 的完整 URL，直接返回
+  if (isR2Url(pathOrUrl)) {
+    return pathOrUrl;
+  }
+  
+  // 否則使用 Supabase Storage
+  const url = supabase.storage.from(BUCKET).getPublicUrl(pathOrUrl).data.publicUrl;
   
   // 如果是預覽模式，添加 transform 參數來優化載入速度
   if (options.preview) {
     // 使用 render/image 端點可確保轉換被套用
-    const renderUrl = `${SUPABASE_URL}/storage/v1/render/image/public/${BUCKET}/${encodeStoragePath(path)}`;
+    const renderUrl = `${SUPABASE_URL}/storage/v1/render/image/public/${BUCKET}/${encodeStoragePath(pathOrUrl)}`;
     const urlObj = new URL(renderUrl);
     // 只設置品質參數，不限制寬度，保持原始縱橫比
     urlObj.searchParams.set('quality', options.quality || '50');
@@ -1198,7 +1206,20 @@ async function deleteImage(image) {
     return;
   }
 
-  await supabase.storage.from(BUCKET).remove([image.path]);
+  // 根據路徑類型決定刪除方式
+  if (isR2Url(image.path)) {
+    // 從 R2 刪除
+    const filename = extractFilenameFromR2Url(image.path);
+    const result = await deleteFromR2(filename);
+    if (!result.success) {
+      console.warn('R2 刪除失敗:', result.error);
+      // 繼續執行，因為資料庫記錄已刪除
+    }
+  } else {
+    // 從 Supabase Storage 刪除
+    await supabase.storage.from(BUCKET).remove([image.path]);
+  }
+  
   await loadImages();
   // 刪除圖片後更新相簿卡片預覽
   if (state.album) {
@@ -1263,15 +1284,32 @@ async function deleteAlbum(albumId) {
 
   // 刪除儲存的圖片文件及相簿文件夾
   if (images && images.length > 0) {
-    const paths = images.map(img => img.path);
-    // 刪除所有相簿內的文件（包括直接在相簿文件夾下的所有文件）
-    const { error: storageError } = await supabase.storage
-      .from(BUCKET)
-      .remove(paths);
+    // 分類圖片：R2 和 Supabase Storage
+    const r2Images = images.filter(img => isR2Url(img.path));
+    const supabaseImages = images.filter(img => !isR2Url(img.path));
     
-    if (storageError) {
-      console.warn("刪除存儲文件時出錯:", storageError);
-      // 不中斷流程，繼續刪除相簿記錄
+    // 刪除 R2 圖片
+    if (r2Images.length > 0) {
+      for (const img of r2Images) {
+        const filename = extractFilenameFromR2Url(img.path);
+        const result = await deleteFromR2(filename);
+        if (!result.success) {
+          console.warn('R2 刪除失敗:', filename, result.error);
+        }
+      }
+    }
+    
+    // 刪除 Supabase Storage 圖片
+    if (supabaseImages.length > 0) {
+      const paths = supabaseImages.map(img => img.path);
+      const { error: storageError } = await supabase.storage
+        .from(BUCKET)
+        .remove(paths);
+      
+      if (storageError) {
+        console.warn("刪除存儲文件時出錯:", storageError);
+        // 不中斷流程，繼續刪除相簿記錄
+      }
     }
   }
 
@@ -1433,13 +1471,31 @@ async function uploadImages(files) {
     const path = `${state.album.id}/${newId()}.${extension}`;
     const contentType = extension === "png" ? "image/png" : "image/jpeg";
 
-    const { error: uploadError } = await supabase.storage
-      .from(BUCKET)
-      .upload(path, blob, { contentType });
+    let imagePath; // 儲存路徑或 URL
+    
+    // 根據 R2_CONFIG.enabled 決定上傳目標
+    if (R2_CONFIG.enabled) {
+      // 上傳到 Cloudflare R2
+      const result = await uploadToR2(blob, path, contentType);
+      
+      if (!result.success) {
+        setStatus(result.error, 'error');
+        return;
+      }
+      
+      imagePath = result.url; // R2 返回完整的 URL
+    } else {
+      // 上傳到 Supabase Storage（原有邏輯）
+      const { error: uploadError } = await supabase.storage
+        .from(BUCKET)
+        .upload(path, blob, { contentType });
 
-    if (uploadError) {
-      setStatus(uploadError.message, 'error');
-      return;
+      if (uploadError) {
+        setStatus(uploadError.message, 'error');
+        return;
+      }
+      
+      imagePath = path; // Supabase 儲存相對路徑
     }
 
     const sortOrder = addFirst ? minOrder - (i + 1) : baseOrder + (i + 1);
@@ -1448,7 +1504,7 @@ async function uploadImages(files) {
       .insert({
         id: newId(),
         album_id: state.album.id,
-        path,
+        path: imagePath, // 使用 imagePath（R2 URL 或 Supabase 路徑）
         caption: "",
         custom_link: null,
         sort_order: sortOrder,

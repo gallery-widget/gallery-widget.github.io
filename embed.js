@@ -12,18 +12,30 @@ const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
   },
 });
 
+// 檢查是否為 R2 URL
+function isR2Url(pathOrUrl) {
+  if (!pathOrUrl) return false;
+  return pathOrUrl.startsWith('http://') || pathOrUrl.startsWith('https://');
+}
+
 // 圖片URL輔助函數：為預覽生成優化版本，為下載/開啟保留原圖
 function encodeStoragePath(path) {
   return path.split("/").map(encodeURIComponent).join("/");
 }
 
-function getImageUrl(path, options = {}) {
-  const url = supabase.storage.from(BUCKET).getPublicUrl(path).data.publicUrl;
+function getImageUrl(pathOrUrl, options = {}) {
+  // 如果是 R2 的完整 URL，直接返回
+  if (isR2Url(pathOrUrl)) {
+    return pathOrUrl;
+  }
+  
+  // 否則使用 Supabase Storage
+  const url = supabase.storage.from(BUCKET).getPublicUrl(pathOrUrl).data.publicUrl;
   
   // 如果是預覽模式，添加 transform 參數來優化載入速度
   if (options.preview) {
     // 使用 render/image 端點可確保轉換被套用
-    const renderUrl = `${SUPABASE_URL}/storage/v1/render/image/public/${BUCKET}/${encodeStoragePath(path)}`;
+    const renderUrl = `${SUPABASE_URL}/storage/v1/render/image/public/${BUCKET}/${encodeStoragePath(pathOrUrl)}`;
     const urlObj = new URL(renderUrl);
     // 只設置品質參數，不限制寬度，保持原始縱橫比
     urlObj.searchParams.set('quality', options.quality || '50');

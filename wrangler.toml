@@ -1,0 +1,7 @@
+name = "gallery-upload-worker"
+main = "cloudflare-worker.js"
+compatibility_date = "2026-02-13"
+
+[[r2_buckets]]
+binding = "ALBUM_BUCKET"
+bucket_name = "gallery-widget-album"
