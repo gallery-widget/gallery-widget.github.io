@@ -264,7 +264,7 @@ function currentEmbedUrl() {
 async function refreshAuth() {
   let sessionData;
   try {
-    const result = await supabase.auth.getSession();
+    const result = await withTimeout(supabase.auth.getSession(), 3000);
     sessionData = result.data;
     console.log('[auth] getSession', {
       hasSession: Boolean(sessionData?.session),
@@ -272,7 +272,7 @@ async function refreshAuth() {
       expiresAt: sessionData?.session?.expires_at || null,
     });
   } catch (e) {
-    console.error('[auth] getSession error', e);
+    console.error('[auth] getSession error', e?.message || e);
     sessionData = { session: null };
   }
 
@@ -305,6 +305,13 @@ async function refreshAuth() {
 
   state.user = sessionData.session?.user || null;
   renderAuth();
+}
+
+function withTimeout(promise, ms) {
+  return Promise.race([
+    promise,
+    new Promise((_, reject) => setTimeout(() => reject(new Error('getSession timeout')), ms)),
+  ]);
 }
 
 function renderAuth() {
@@ -1501,17 +1508,16 @@ supabase.auth.onAuthStateChange(async (event, session) => {
   });
   const newUserId = session?.user?.id || null;
   const oldUserId = state.user?.id || null;
-  
-  // 只有在用户真正变化时才重新加载（避免页面刷新时重复加载）
-  // INITIAL_SESSION 事件在頁面載入時觸發，此時已經在初始化中處理過了
-  if (newUserId !== oldUserId && event !== 'INITIAL_SESSION') {
+
+  // 允許 INITIAL_SESSION 更新狀態，避免 refresh 時無法還原 UI
+  if (newUserId !== oldUserId || event === 'INITIAL_SESSION') {
     state.user = session?.user || null;
-    
+
     // 如果用戶剛登入，檢查是否有匿名相簿需要轉移
     if (newUserId && !oldUserId) {
       await transferAnonymousAlbums(newUserId);
     }
-    
+
     renderAuth();
     await loadAlbums();
     updateEmbed();
