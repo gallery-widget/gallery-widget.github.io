@@ -263,6 +263,7 @@ function currentEmbedUrl() {
 
 async function refreshAuth() {
   let sessionData;
+  const existingUser = state.user;
   try {
     const result = await withTimeout(supabase.auth.getSession(), 3000);
     sessionData = result.data;
@@ -273,11 +274,6 @@ async function refreshAuth() {
     });
   } catch (e) {
     console.error('[auth] getSession error', e?.message || e);
-    // If auth state already exists (e.g. onAuthStateChange), do not clobber it.
-    if (state.user) {
-      renderAuth();
-      return;
-    }
     sessionData = { session: null };
   }
 
@@ -308,7 +304,7 @@ async function refreshAuth() {
     }
   }
 
-  state.user = sessionData.session?.user || null;
+  state.user = sessionData.session?.user || existingUser || null;
   renderAuth();
 }
 
