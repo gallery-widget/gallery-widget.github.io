@@ -14,8 +14,15 @@ import { R2_CONFIG } from './r2-config.js';
     if (albumId) {
       // 檢查 referrer 是否來自 Notion（用於保留 Notion 標記）
       const referrer = document.referrer.toLowerCase();
-      const isFromNotionReferrer = referrer.includes('notion.so') || referrer.includes('notion.site');
+      const isFromNotionReferrer = referrer.includes('notion.so') || 
+                                   referrer.includes('notion.site') ||
+                                   referrer.includes('notion.com');
       const isOwner = urlParams.get('owner');
+      
+      // 如果偵測到 Notion，先保存到 sessionStorage，避免 referrer 丟失
+      if (isFromNotionReferrer) {
+        sessionStorage.setItem('notionEmbedDetected', '1');
+      }
       
       // 構建新 URL
       const newUrl = new URL('https://gallery-widget.github.io/embed.html');
@@ -795,9 +802,19 @@ function isFromNotion() {
     return true;
   }
   
-  // 方案2：檢查 referrer（用於直接嵌入場景）
+  // 方案2：檢查 sessionStorage（備份方案，防止 referrer 丟失）
+  if (sessionStorage.getItem('notionEmbedDetected') === '1') {
+    // 清除 flag，只使用一次
+    sessionStorage.removeItem('notionEmbedDetected');
+    return true;
+  }
+  
+  // 方案3：檢查 referrer（用於直接嵌入場景）
   const referrer = document.referrer.toLowerCase();
-  return referrer.includes('notion.so') || referrer.includes('notion.site');
+  const isFromNotionReferrer = referrer.includes('notion.so') || 
+                               referrer.includes('notion.site') ||
+                               referrer.includes('notion.com');
+  return isFromNotionReferrer;
 }
 
 // Notion 區塊顏色映射表（深淺模式）
