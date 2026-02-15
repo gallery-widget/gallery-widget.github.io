@@ -1,6 +1,35 @@
 import { createClient } from "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm";
 import { R2_CONFIG } from './r2-config.js';
 
+// 處理舊網址重定向：如果來自舊網址更新 URL 但保留 Notion 標記
+(function() {
+  const currentHostname = window.location.hostname;
+  const isFromOldDomain = currentHostname === 'ebluvu.github.io';
+  
+  if (isFromOldDomain) {
+    // 來自舊網址，需要重定向
+    const urlParams = new URLSearchParams(window.location.search);
+    const albumId = urlParams.get('album');
+    
+    if (albumId) {
+      // 檢查 referrer 是否來自 Notion（用於保留 Notion 標記）
+      const referrer = document.referrer.toLowerCase();
+      const isFromNotionReferrer = referrer.includes('notion.so') || referrer.includes('notion.site');
+      const isOwner = urlParams.get('owner');
+      
+      // 構建新 URL
+      const newUrl = new URL('https://gallery-widget.github.io/embed.html');
+      newUrl.searchParams.set('album', albumId);
+      if (isOwner) newUrl.searchParams.set('owner', isOwner);
+      if (isFromNotionReferrer) newUrl.searchParams.set('from_notion', '1');
+      
+      // 重定向
+      window.location.replace(newUrl.toString());
+      throw new Error('Redirecting to new domain');
+    }
+  }
+})();
+
 const SUPABASE_URL = "https://eooudvssawtdtttrwyfr.supabase.co";
 const SUPABASE_ANON_KEY = "sb_publishable_sX69Y-P_n8QgAkrcb8gGtQ_FoKhG9mj";
 const BUCKET = "album";
@@ -760,12 +789,15 @@ function renderThumbnail(album, images) {
 
 // Notion 主題檢測與背景設定
 function isFromNotion() {
-  // 檢查 referrer 是否來自 Notion
+  // 方案1：檢查 URL 查詢參數（用於重導向場景）
+  const urlParams = new URLSearchParams(window.location.search);
+  if (urlParams.get('from_notion') === '1') {
+    return true;
+  }
+  
+  // 方案2：檢查 referrer（用於直接嵌入場景）
   const referrer = document.referrer.toLowerCase();
-  // 支持直接來自 Notion 或透過舊網址跳轉的情況
-  return referrer.includes('notion.so') || 
-         referrer.includes('notion.site') || 
-         referrer.includes('ebluvu.github.io/gallery-widget');
+  return referrer.includes('notion.so') || referrer.includes('notion.site');
 }
 
 // Notion 區塊顏色映射表（深淺模式）

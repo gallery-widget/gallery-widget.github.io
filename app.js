@@ -1796,6 +1796,7 @@ ui.clearMigrationBtn.addEventListener('click', clearMigration);
   ui.notionBlockColorSelect.value = lastSettings.notion_block_color;
   ui.addNewSelect.value = lastSettings.add_new_first ? "first" : "last";
   
+  // 先等待 refreshAuth 完成後再 loadAlbums，確保 state.user 已被正確設定
   await refreshAuth();
   await loadAlbums();
 })();
