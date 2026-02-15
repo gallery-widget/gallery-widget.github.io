@@ -7,7 +7,7 @@ export default {
     // 動態 CORS 標頭 - 支援本地開發和生產環境
     const origin = request.headers.get('Origin');
     const allowedOrigins = [
-      'https://ebluvu.github.io',           // 生產環境
+      'https://gallery-widget.github.io',   // 生產環境
       'http://127.0.0.1:5500',              // VS Code Live Server
       'http://localhost:5500',              // 本地開發
       'http://127.0.0.1:5501',              // 其他本地端口
@@ -15,7 +15,7 @@ export default {
     ];
     
     const corsHeaders = {
-      'Access-Control-Allow-Origin': allowedOrigins.includes(origin) ? origin : 'https://ebluvu.github.io',
+      'Access-Control-Allow-Origin': allowedOrigins.includes(origin) ? origin : 'https://gallery-widget.github.io',
       'Access-Control-Allow-Methods': 'GET, POST, DELETE, OPTIONS',
       'Access-Control-Allow-Headers': 'Content-Type',
     };

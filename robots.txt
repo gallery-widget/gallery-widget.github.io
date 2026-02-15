@@ -6,4 +6,4 @@ Allow: /
 Disallow: /embed.html
 
 # Sitemap location
-Sitemap: https://ebluvu.github.io/gallery-widget/sitemap.xml
+Sitemap: https://gallery-widget.github.io/sitemap.xml

@@ -90,7 +90,7 @@ function isOwner() {
 
 // 通用工具函數
 function openBuilder() {
-  window.open("https://ebluvu.github.io/gallery-widget/", "_blank", "noopener");
+  window.open("https://gallery-widget.github.io/", "_blank", "noopener");
 }
 
 function normalizeExternalLink(value) {
