@@ -261,6 +261,11 @@ function currentEmbedUrl() {
 
 async function refreshAuth() {
   let { data: sessionData } = await supabase.auth.getSession();
+  console.debug('[auth] getSession', {
+    hasSession: Boolean(sessionData?.session),
+    userId: sessionData?.session?.user?.id || null,
+    expiresAt: sessionData?.session?.expires_at || null,
+  });
 
   if (!sessionData.session) {
     try {
@@ -273,6 +278,11 @@ async function refreshAuth() {
           const { data, error } = await supabase.auth.setSession({
             access_token: parsed.access_token,
             refresh_token: parsed.refresh_token,
+          });
+          console.debug('[auth] setSession', {
+            ok: !error,
+            hasSession: Boolean(data?.session),
+            error: error?.message || null,
           });
           if (!error && data?.session) {
             sessionData = data;
@@ -1475,6 +1485,11 @@ document.addEventListener("keydown", (e) => {
 });
 
 supabase.auth.onAuthStateChange(async (event, session) => {
+  console.debug('[auth] onAuthStateChange', {
+    event,
+    userId: session?.user?.id || null,
+    expiresAt: session?.expires_at || null,
+  });
   const newUserId = session?.user?.id || null;
   const oldUserId = state.user?.id || null;
   
@@ -1860,6 +1875,8 @@ ui.clearMigrationBtn.addEventListener('click', clearMigration);
   ui.addNewSelect.value = lastSettings.add_new_first ? "first" : "last";
   
   // 先等待 refreshAuth 完成後再 loadAlbums，確保 state.user 已被正確設定
+  console.debug('[auth] init: refreshAuth start');
   await refreshAuth();
+  console.debug('[auth] init: refreshAuth done', { userId: state.user?.id || null });
   await loadAlbums();
 })();
