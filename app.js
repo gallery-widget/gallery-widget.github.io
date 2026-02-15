@@ -2,8 +2,6 @@ import { createClient } from "https://cdn.jsdelivr.net/npm/@supabase/supabase-js
 import { R2_CONFIG } from './r2-config.js';
 import { uploadToR2, deleteFromR2, isR2Url, extractFilenameFromR2Url } from './r2-helper.js';
 
-console.log('[app] loaded', { href: window.location.href });
-
 // 處理舊網址重定向並清理舊會話：優先於 Supabase 初始化執行
 (function() {
   const currentHostname = window.location.hostname;
@@ -43,13 +41,7 @@ const SUPABASE_ANON_KEY = "sb_publishable_sX69Y-P_n8QgAkrcb8gGtQ_FoKhG9mj";
 const BUCKET = "album";
 const MAX_IMAGE_SIZE = 1600;
 
-const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
-  auth: {
-    autoRefreshToken: true,
-    persistSession: true,
-    detectSessionInUrl: true,
-  },
-});
+const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
 // 圖片URL輔助函數：為預覽生成優化版本，為下載/開啟保留原圖
 function encodeStoragePath(path) {
@@ -262,60 +254,9 @@ function currentEmbedUrl() {
 }
 
 async function refreshAuth() {
-  let sessionData;
-  const existingUser = state.user;
-  let rehydratedSession = null;
-
-  // Try to rehydrate session from localStorage first to avoid getSession hanging.
-  try {
-    const projectRef = SUPABASE_URL.replace(/^https?:\/\//, '').split('.')[0];
-    const storageKey = `sb-${projectRef}-auth-token`;
-    const stored = localStorage.getItem(storageKey);
-    if (stored) {
-      const parsed = JSON.parse(stored);
-      if (parsed?.access_token && parsed?.refresh_token) {
-        const { data, error } = await withTimeout(
-          supabase.auth.setSession({
-            access_token: parsed.access_token,
-            refresh_token: parsed.refresh_token,
-          }),
-          3000
-        );
-        console.log('[auth] setSession', {
-          ok: !error,
-          hasSession: Boolean(data?.session),
-          error: error?.message || null,
-        });
-        if (!error && data?.session) {
-          rehydratedSession = data.session;
-        }
-      }
-    }
-  } catch (e) {
-    console.warn('無法從 localStorage 還原會話:', e);
-  }
-  try {
-    const result = await withTimeout(supabase.auth.getSession(), 3000);
-    sessionData = result.data;
-    console.log('[auth] getSession', {
-      hasSession: Boolean(sessionData?.session),
-      userId: sessionData?.session?.user?.id || null,
-      expiresAt: sessionData?.session?.expires_at || null,
-    });
-  } catch (e) {
-    console.error('[auth] getSession error', e?.message || e);
-    sessionData = { session: rehydratedSession };
-  }
-
-  state.user = sessionData.session?.user || existingUser || null;
+  const { data: sessionData } = await supabase.auth.getSession();
+  state.user = sessionData.session?.user || null;
   renderAuth();
-}
-
-function withTimeout(promise, ms) {
-  return Promise.race([
-    promise,
-    new Promise((_, reject) => setTimeout(() => reject(new Error('getSession timeout')), ms)),
-  ]);
 }
 
 function renderAuth() {
@@ -1504,17 +1445,12 @@ document.addEventListener("keydown", (e) => {
   }
 });
 
-supabase.auth.onAuthStateChange(async (event, session) => {
-  console.log('[auth] onAuthStateChange', {
-    event,
-    userId: session?.user?.id || null,
-    expiresAt: session?.expires_at || null,
-  });
+supabase.auth.onAuthStateChange(async (_event, session) => {
   const newUserId = session?.user?.id || null;
   const oldUserId = state.user?.id || null;
 
-  // 允許 INITIAL_SESSION 更新狀態，避免 refresh 時無法還原 UI
-  if (newUserId !== oldUserId || event === 'INITIAL_SESSION') {
+  // 只有在用户真正变化时才重新加载（避免页面刷新时重复加载）
+  if (newUserId !== oldUserId) {
     state.user = session?.user || null;
 
     // 如果用戶剛登入，檢查是否有匿名相簿需要轉移
@@ -1523,7 +1459,7 @@ supabase.auth.onAuthStateChange(async (event, session) => {
     }
 
     renderAuth();
-    await loadAlbums();
+    loadAlbums();
     updateEmbed();
   }
 });
@@ -1894,8 +1830,6 @@ ui.clearMigrationBtn.addEventListener('click', clearMigration);
   ui.addNewSelect.value = lastSettings.add_new_first ? "first" : "last";
   
   // 先等待 refreshAuth 完成後再 loadAlbums，確保 state.user 已被正確設定
-  console.log('[auth] init: refreshAuth start');
   await refreshAuth();
-  console.log('[auth] init: refreshAuth done', { userId: state.user?.id || null });
   await loadAlbums();
 })();
