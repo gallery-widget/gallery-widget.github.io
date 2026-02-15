@@ -264,6 +264,36 @@ function currentEmbedUrl() {
 async function refreshAuth() {
   let sessionData;
   const existingUser = state.user;
+  let rehydratedSession = null;
+
+  // Try to rehydrate session from localStorage first to avoid getSession hanging.
+  try {
+    const projectRef = SUPABASE_URL.replace(/^https?:\/\//, '').split('.')[0];
+    const storageKey = `sb-${projectRef}-auth-token`;
+    const stored = localStorage.getItem(storageKey);
+    if (stored) {
+      const parsed = JSON.parse(stored);
+      if (parsed?.access_token && parsed?.refresh_token) {
+        const { data, error } = await withTimeout(
+          supabase.auth.setSession({
+            access_token: parsed.access_token,
+            refresh_token: parsed.refresh_token,
+          }),
+          3000
+        );
+        console.log('[auth] setSession', {
+          ok: !error,
+          hasSession: Boolean(data?.session),
+          error: error?.message || null,
+        });
+        if (!error && data?.session) {
+          rehydratedSession = data.session;
+        }
+      }
+    }
+  } catch (e) {
+    console.warn('無法從 localStorage 還原會話:', e);
+  }
   try {
     const result = await withTimeout(supabase.auth.getSession(), 3000);
     sessionData = result.data;
@@ -274,34 +304,7 @@ async function refreshAuth() {
     });
   } catch (e) {
     console.error('[auth] getSession error', e?.message || e);
-    sessionData = { session: null };
-  }
-
-  if (!sessionData.session) {
-    try {
-      const projectRef = SUPABASE_URL.replace(/^https?:\/\//, '').split('.')[0];
-      const storageKey = `sb-${projectRef}-auth-token`;
-      const stored = localStorage.getItem(storageKey);
-      if (stored) {
-        const parsed = JSON.parse(stored);
-        if (parsed?.access_token && parsed?.refresh_token) {
-          const { data, error } = await supabase.auth.setSession({
-            access_token: parsed.access_token,
-            refresh_token: parsed.refresh_token,
-          });
-          console.log('[auth] setSession', {
-            ok: !error,
-            hasSession: Boolean(data?.session),
-            error: error?.message || null,
-          });
-          if (!error && data?.session) {
-            sessionData = data;
-          }
-        }
-      }
-    } catch (e) {
-      console.warn('無法從 localStorage 還原會話:', e);
-    }
+    sessionData = { session: rehydratedSession };
   }
 
   state.user = sessionData.session?.user || existingUser || null;
