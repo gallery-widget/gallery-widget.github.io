@@ -23,14 +23,29 @@
     <div id="embedGrid" class="embed-grid"></div>
   </div>
 
-  <!-- 清理舊域名的會話數據（在應用加載前執行）-->
+  <!-- 清理舊域名的 Supabase 會話數據（只清除 auth 相關數據）-->
   <script>
     (function cleanupOldSessions() {
       try {
-        // 徹底清空所有儲存
-        localStorage.clear();
+        // 只移除 Supabase 相關的 keys
+        const keysToRemove = [];
+        for (let i = 0; i < localStorage.length; i++) {
+          const key = localStorage.key(i);
+          if (key && (key.startsWith('sb-') || key.includes('supabase') || key.includes('auth'))) {
+            keysToRemove.push(key);
+          }
+        }
+        
+        // 清除蒐集的 keys
+        keysToRemove.forEach(key => {
+          try {
+            localStorage.removeItem(key);
+            console.log('已移除舊 Supabase session:', key);
+          } catch (e) {}
+        });
+        
+        // 清除 sessionStorage
         sessionStorage.clear();
-        console.log('已清理所有舊會話數據');
       } catch (e) {
         console.warn('清理會話時出錯:', e);
       }
