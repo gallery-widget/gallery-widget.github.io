@@ -15,6 +15,27 @@ const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
   },
 });
 
+// 清理舊域名來源的會話數據，防止跨域污染
+(function cleanupOldDomainSessions() {
+  // 檢查 localStorage 中是否有舊域名的 Supabase 會話數據
+  const lsKeys = Object.keys(localStorage);
+  for (const key of lsKeys) {
+    // 移除可能來自舊域名的 Supabase session keys
+    if (key.startsWith('sb-') || key.includes('supabase') || key.includes('ebluvu')) {
+      try {
+        const value = localStorage.getItem(key);
+        // 如果值包含 ebluvu 標記，這可能是舊域名的數據
+        if (value && value.includes('ebluvu')) {
+          localStorage.removeItem(key);
+          console.log('已移除舊域名 localStorage:', key);
+        }
+      } catch (e) {
+        console.warn('清理 localStorage 時出錯:', e);
+      }
+    }
+  }
+})();
+
 // 圖片URL輔助函數：為預覽生成優化版本，為下載/開啟保留原圖
 function encodeStoragePath(path) {
   return path.split("/").map(encodeURIComponent).join("/");
