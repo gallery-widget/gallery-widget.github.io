@@ -1,34 +1,27 @@
 import { createClient } from "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm";
 import { R2_CONFIG } from './r2-config.js';
 
-// 處理舊網址重定向：如果來自舊網址更新 URL 但保留 Notion 標記
+// 處理舊網址重定向：如果來自舊網址更新 URL 但保留 referrer 和其他參數
 (function() {
   const currentHostname = window.location.hostname;
   const isFromOldDomain = currentHostname === 'ebluvu.github.io';
   
   if (isFromOldDomain) {
-    // 來自舊網址，需要重定向
+    // 來自舊網址，需要重定向到新網址
     const urlParams = new URLSearchParams(window.location.search);
     const albumId = urlParams.get('album');
     
     if (albumId) {
-      // 檢查 referrer 是否來自 Notion（用於保留 Notion 標記）
-      const referrer = document.referrer.toLowerCase();
-      const isFromNotionReferrer = referrer.includes('notion.so') || 
-                                   referrer.includes('notion.site') ||
-                                   referrer.includes('notion.com');
-      const isOwner = urlParams.get('owner');
-      
-      // 如果偵測到 Notion，先保存到 sessionStorage，避免 referrer 丟失
-      if (isFromNotionReferrer) {
-        sessionStorage.setItem('notionEmbedDetected', '1');
-      }
-      
-      // 構建新 URL
+      // 構建新 URL，保留所有參數（舊網址會通過 ref 參數傳遞 referrer）
       const newUrl = new URL('https://gallery-widget.github.io/embed.html');
       newUrl.searchParams.set('album', albumId);
-      if (isOwner) newUrl.searchParams.set('owner', isOwner);
-      if (isFromNotionReferrer) newUrl.searchParams.set('from_notion', '1');
+      
+      // 保留其他參數（owner, ref 等）
+      const paramsToPreserve = ['owner', 'ref'];
+      paramsToPreserve.forEach(param => {
+        const value = urlParams.get(param);
+        if (value) newUrl.searchParams.set(param, value);
+      });
       
       // 重定向
       window.location.replace(newUrl.toString());
@@ -796,20 +789,33 @@ function renderThumbnail(album, images) {
 
 // Notion 主題檢測與背景設定
 function isFromNotion() {
-  // 方案1：檢查 URL 查詢參數（用於重導向場景）
+  // 方案1：檢查 URL 查詢參數中的 ref（從舊網址傳遞的 referrer）
   const urlParams = new URLSearchParams(window.location.search);
-  if (urlParams.get('from_notion') === '1') {
-    return true;
+  const refParam = urlParams.get('ref');
+  
+  if (refParam) {
+    try {
+      // 解碼 ref 參數獲取原始 referrer
+      const decodedRef = decodeURIComponent(refParam).toLowerCase();
+      const isFromNotionReferrer = decodedRef.includes('notion.so') || 
+                                   decodedRef.includes('notion.site') ||
+                                   decodedRef.includes('notion.com');
+      if (isFromNotionReferrer) {
+        return true;
+      }
+    } catch (e) {
+      // 解碼失敗，繼續檢查其他方案
+      console.warn('解碼 ref 參數失敗:', e);
+    }
   }
   
-  // 方案2：檢查 sessionStorage（備份方案，防止 referrer 丟失）
+  // 方案2：檢查 sessionStorage（備份方案）
   if (sessionStorage.getItem('notionEmbedDetected') === '1') {
-    // 清除 flag，只使用一次
     sessionStorage.removeItem('notionEmbedDetected');
     return true;
   }
   
-  // 方案3：檢查 referrer（用於直接嵌入場景）
+  // 方案3：檢查 referrer（用於直接嵌入新網址場景）
   const referrer = document.referrer.toLowerCase();
   const isFromNotionReferrer = referrer.includes('notion.so') || 
                                referrer.includes('notion.site') ||
