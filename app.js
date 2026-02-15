@@ -1203,6 +1203,7 @@ async function prepareImage(file) {
 
 async function uploadImages(files) {
   // 如果没有选中相册，自动创建一个
+  const isNewAlbum = !state.album;
   if (!state.album) {
     setStatus("自動建立新相簿...", 'info');
     const album = await createAlbum();
@@ -1282,7 +1283,13 @@ async function uploadImages(files) {
   await loadImages();
   // 只有登入用戶才更新相簿卡片（匿名用戶不需要相簿管理功能）
   if (state.user && state.album) {
-    await updateAlbumCardPreview(state.album.id);
+    // 如果是新建的相簿，重新載入相簿列表以顯示新相簿
+    if (isNewAlbum) {
+      await loadAlbums();
+    } else {
+      // 否則只更新該相簿的預覽圖
+      await updateAlbumCardPreview(state.album.id);
+    }
   }
   updateEmbed();
   setStatus("上傳完成。", 'success');
@@ -1404,12 +1411,13 @@ document.addEventListener("keydown", (e) => {
   }
 });
 
-supabase.auth.onAuthStateChange(async (_event, session) => {
+supabase.auth.onAuthStateChange(async (event, session) => {
   const newUserId = session?.user?.id || null;
   const oldUserId = state.user?.id || null;
   
   // 只有在用户真正变化时才重新加载（避免页面刷新时重复加载）
-  if (newUserId !== oldUserId) {
+  // INITIAL_SESSION 事件在頁面載入時觸發，此時已經在初始化中處理過了
+  if (newUserId !== oldUserId && event !== 'INITIAL_SESSION') {
     state.user = session?.user || null;
     
     // 如果用戶剛登入，檢查是否有匿名相簿需要轉移
@@ -1418,7 +1426,7 @@ supabase.auth.onAuthStateChange(async (_event, session) => {
     }
     
     renderAuth();
-    loadAlbums();
+    await loadAlbums();
     updateEmbed();
   }
 });

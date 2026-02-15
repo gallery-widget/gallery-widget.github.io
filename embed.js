@@ -762,7 +762,10 @@ function renderThumbnail(album, images) {
 function isFromNotion() {
   // 檢查 referrer 是否來自 Notion
   const referrer = document.referrer.toLowerCase();
-  return referrer.includes('notion.so') || referrer.includes('notion.site');
+  // 支持直接來自 Notion 或透過舊網址跳轉的情況
+  return referrer.includes('notion.so') || 
+         referrer.includes('notion.site') || 
+         referrer.includes('ebluvu.github.io/gallery-widget');
 }
 
 // Notion 區塊顏色映射表（深淺模式）
