@@ -45,7 +45,7 @@ const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
   auth: {
     autoRefreshToken: true,
     persistSession: true,
-    detectSessionInUrl: false,  // 改為 false，防止 URL 檢查覆蓋 localStorage
+    detectSessionInUrl: true,
   },
 });
 
