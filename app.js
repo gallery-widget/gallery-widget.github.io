@@ -45,30 +45,9 @@ const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
   auth: {
     autoRefreshToken: true,
     persistSession: true,
-    detectSessionInUrl: true,
+    detectSessionInUrl: false,  // 改為 false，防止 URL 檢查覆蓋 localStorage
   },
 });
-
-// 清理舊域名來源的會話數據，防止跨域污染
-(function cleanupOldDomainSessions() {
-  // 檢查 localStorage 中是否有舊域名的 Supabase 會話數據
-  const lsKeys = Object.keys(localStorage);
-  for (const key of lsKeys) {
-    // 移除可能來自舊域名的 Supabase session keys
-    if (key.startsWith('sb-') || key.includes('supabase') || key.includes('ebluvu')) {
-      try {
-        const value = localStorage.getItem(key);
-        // 如果值包含 ebluvu 標記，這可能是舊域名的數據
-        if (value && value.includes('ebluvu')) {
-          localStorage.removeItem(key);
-          console.log('已移除舊域名 localStorage:', key);
-        }
-      } catch (e) {
-        console.warn('清理 localStorage 時出錯:', e);
-      }
-    }
-  }
-})();
 
 // 圖片URL輔助函數：為預覽生成優化版本，為下載/開啟保留原圖
 function encodeStoragePath(path) {
@@ -281,7 +260,30 @@ function currentEmbedUrl() {
 }
 
 async function refreshAuth() {
-  const { data: sessionData } = await supabase.auth.getSession();
+  let { data: sessionData } = await supabase.auth.getSession();
+
+  if (!sessionData.session) {
+    try {
+      const projectRef = SUPABASE_URL.replace(/^https?:\/\//, '').split('.')[0];
+      const storageKey = `sb-${projectRef}-auth-token`;
+      const stored = localStorage.getItem(storageKey);
+      if (stored) {
+        const parsed = JSON.parse(stored);
+        if (parsed?.access_token && parsed?.refresh_token) {
+          const { data, error } = await supabase.auth.setSession({
+            access_token: parsed.access_token,
+            refresh_token: parsed.refresh_token,
+          });
+          if (!error && data?.session) {
+            sessionData = data;
+          }
+        }
+      }
+    } catch (e) {
+      console.warn('無法從 localStorage 還原會話:', e);
+    }
+  }
+
   state.user = sessionData.session?.user || null;
   renderAuth();
 }
