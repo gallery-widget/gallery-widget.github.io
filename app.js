@@ -273,6 +273,11 @@ async function refreshAuth() {
     });
   } catch (e) {
     console.error('[auth] getSession error', e?.message || e);
+    // If auth state already exists (e.g. onAuthStateChange), do not clobber it.
+    if (state.user) {
+      renderAuth();
+      return;
+    }
     sessionData = { session: null };
   }
 
