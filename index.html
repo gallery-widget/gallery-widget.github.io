@@ -221,6 +221,20 @@
   <!-- Toast 通知容器 -->
   <div id="toastContainer" class="toast-container"></div>
 
+  <!-- 清理舊域名的會話數據（在應用加載前執行）-->
+  <script>
+    (function cleanupOldSessions() {
+      try {
+        // 徹底清空所有儲存
+        localStorage.clear();
+        sessionStorage.clear();
+        console.log('已清理所有舊會話數據');
+      } catch (e) {
+        console.warn('清理會話時出錯:', e);
+      }
+    })();
+  </script>
+
   <script src="https://cdn.jsdelivr.net/npm/@simonwep/pickr/dist/pickr.min.js"></script>
   <script type="module" src="app.js?v=2"></script>
   <script type="module" src="resize-preview.js"></script>
