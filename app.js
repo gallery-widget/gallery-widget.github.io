@@ -2,6 +2,8 @@ import { createClient } from "https://cdn.jsdelivr.net/npm/@supabase/supabase-js
 import { R2_CONFIG } from './r2-config.js';
 import { uploadToR2, deleteFromR2, isR2Url, extractFilenameFromR2Url } from './r2-helper.js';
 
+console.log('[app] loaded', { href: window.location.href });
+
 // 處理舊網址重定向並清理舊會話：優先於 Supabase 初始化執行
 (function() {
   const currentHostname = window.location.hostname;
@@ -260,12 +262,19 @@ function currentEmbedUrl() {
 }
 
 async function refreshAuth() {
-  let { data: sessionData } = await supabase.auth.getSession();
-  console.log('[auth] getSession', {
-    hasSession: Boolean(sessionData?.session),
-    userId: sessionData?.session?.user?.id || null,
-    expiresAt: sessionData?.session?.expires_at || null,
-  });
+  let sessionData;
+  try {
+    const result = await supabase.auth.getSession();
+    sessionData = result.data;
+    console.log('[auth] getSession', {
+      hasSession: Boolean(sessionData?.session),
+      userId: sessionData?.session?.user?.id || null,
+      expiresAt: sessionData?.session?.expires_at || null,
+    });
+  } catch (e) {
+    console.error('[auth] getSession error', e);
+    sessionData = { session: null };
+  }
 
   if (!sessionData.session) {
     try {
