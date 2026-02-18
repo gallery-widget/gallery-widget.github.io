@@ -1,35 +1,6 @@
 import { createClient } from "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm";
 import { R2_CONFIG } from './r2-config.js';
 
-// 處理舊網址重定向：如果來自舊網址更新 URL 但保留 referrer 和其他參數
-(function() {
-  const currentHostname = window.location.hostname;
-  const isFromOldDomain = currentHostname === 'ebluvu.github.io';
-  
-  if (isFromOldDomain) {
-    // 來自舊網址，需要重定向到新網址
-    const urlParams = new URLSearchParams(window.location.search);
-    const albumId = urlParams.get('album');
-    
-    if (albumId) {
-      // 構建新 URL，保留所有參數（舊網址會通過 ref 參數傳遞 referrer）
-      const newUrl = new URL('https://gallery-widget.github.io/embed.html');
-      newUrl.searchParams.set('album', albumId);
-      
-      // 保留其他參數（owner, ref 等）
-      const paramsToPreserve = ['owner', 'ref'];
-      paramsToPreserve.forEach(param => {
-        const value = urlParams.get(param);
-        if (value) newUrl.searchParams.set(param, value);
-      });
-      
-      // 重定向
-      window.location.replace(newUrl.toString());
-      throw new Error('Redirecting to new domain');
-    }
-  }
-})();
-
 const SUPABASE_URL = "https://eooudvssawtdtttrwyfr.supabase.co";
 const SUPABASE_ANON_KEY = "sb_publishable_sX69Y-P_n8QgAkrcb8gGtQ_FoKhG9mj";
 const BUCKET = "album";

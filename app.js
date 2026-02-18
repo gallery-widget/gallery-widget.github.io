@@ -2,40 +2,6 @@ import { createClient } from "https://cdn.jsdelivr.net/npm/@supabase/supabase-js
 import { R2_CONFIG } from './r2-config.js';
 import { uploadToR2, deleteFromR2, isR2Url, extractFilenameFromR2Url } from './r2-helper.js';
 
-// 處理舊網址重定向並清理舊會話：優先於 Supabase 初始化執行
-(function() {
-  const currentHostname = window.location.hostname;
-  const isFromOldDomain = currentHostname === 'ebluvu.github.io';
-  
-  if (isFromOldDomain) {
-    // 複製 query parameters，跳轉前清理舊會話
-    const urlParams = new URLSearchParams(window.location.search);
-    const newUrl = new URL('https://gallery-widget.github.io/');
-    
-    // 保留其他參數
-    const paramsToPreserve = ['album', 'owner', 'ref'];
-    paramsToPreserve.forEach(param => {
-      const value = urlParams.get(param);
-      if (value) newUrl.searchParams.set(param, value);
-    });
-    
-    // 清理舊域名的 Supabase 會話（在跳轉前）
-    const lsKeys = Object.keys(localStorage);
-    for (const key of lsKeys) {
-      if (key.startsWith('sb-') || key.includes('supabase')) {
-        try {
-          localStorage.removeItem(key);
-          console.log('已移除舊域名 localStorage:', key);
-        } catch (e) {}
-      }
-    }
-    
-    // 重定向
-    window.location.replace(newUrl.toString());
-    throw new Error('Redirecting to new domain');
-  }
-})();
-
 const SUPABASE_URL = "https://eooudvssawtdtttrwyfr.supabase.co";
 const SUPABASE_ANON_KEY = "sb_publishable_sX69Y-P_n8QgAkrcb8gGtQ_FoKhG9mj";
 const BUCKET = "album";
