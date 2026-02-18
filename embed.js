@@ -760,38 +760,8 @@ function renderThumbnail(album, images) {
 
 // Notion 主題檢測與背景設定
 function isFromNotion() {
-  // 方案1：檢查 URL 查詢參數中的 ref（從舊網址傳遞的 referrer）
-  const urlParams = new URLSearchParams(window.location.search);
-  const refParam = urlParams.get('ref');
-  
-  if (refParam) {
-    try {
-      // 解碼 ref 參數獲取原始 referrer
-      const decodedRef = decodeURIComponent(refParam).toLowerCase();
-      const isFromNotionReferrer = decodedRef.includes('notion.so') || 
-                                   decodedRef.includes('notion.site') ||
-                                   decodedRef.includes('notion.com');
-      if (isFromNotionReferrer) {
-        return true;
-      }
-    } catch (e) {
-      // 解碼失敗，繼續檢查其他方案
-      console.warn('解碼 ref 參數失敗:', e);
-    }
-  }
-  
-  // 方案2：檢查 sessionStorage（備份方案）
-  if (sessionStorage.getItem('notionEmbedDetected') === '1') {
-    sessionStorage.removeItem('notionEmbedDetected');
-    return true;
-  }
-  
-  // 方案3：檢查 referrer（用於直接嵌入新網址場景）
   const referrer = document.referrer.toLowerCase();
-  const isFromNotionReferrer = referrer.includes('notion.so') || 
-                               referrer.includes('notion.site') ||
-                               referrer.includes('notion.com');
-  return isFromNotionReferrer;
+  return referrer.includes('notion.so') || referrer.includes('notion.site') || referrer.includes('notion.com');
 }
 
 // Notion 區塊顏色映射表（深淺模式）
