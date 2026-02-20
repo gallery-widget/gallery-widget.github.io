@@ -1122,18 +1122,35 @@ async function deleteAlbum(albumId) {
   await loadAlbums();
 }
 
-async function updateSettings() {
+// 更新相簿設定：僅更新被更動的欄位，避免誤改其他欄位（特別是字體）
+// changedField 可為：'theme' | 'background_color' | 'notion_block_color' | 'add_new_first' | 'font_family'
+async function updateSettings(changedField) {
   if (!state.album) {
     return;
   }
 
-  const payload = {
-    theme: ui.themeSelect.value,
-    background_color: ui.bgColor.value.trim() || "#101828",
-    notion_block_color: ui.notionBlockColorSelect.value,
-    add_new_first: ui.addNewSelect.value === "first",
-    font_family: ui.fontSelect.value || 'noto_sans_tc',
-  };
+  const payload = {};
+
+  if (!changedField || changedField === 'theme') {
+    payload.theme = ui.themeSelect.value;
+  }
+  if (!changedField || changedField === 'background_color') {
+    payload.background_color = ui.bgColor.value.trim() || "#101828";
+  }
+  if (!changedField || changedField === 'notion_block_color') {
+    payload.notion_block_color = ui.notionBlockColorSelect.value;
+  }
+  if (!changedField || changedField === 'add_new_first') {
+    payload.add_new_first = ui.addNewSelect.value === "first";
+  }
+  if (!changedField || changedField === 'font_family') {
+    payload.font_family = ui.fontSelect.value || 'noto_sans_tc';
+  }
+
+  // 若沒有任何欄位需要更新，直接返回
+  if (Object.keys(payload).length === 0) {
+    return;
+  }
 
   const { error } = await supabase
     .from("albums")
@@ -1147,8 +1164,10 @@ async function updateSettings() {
 
   state.album = { ...state.album, ...payload };
   
-  // 儲存設定到 localStorage 以便下次使用
-  saveLastSettings(payload);
+  // 儲存設定到 localStorage（只覆蓋有更新的欄位）
+  const last = getLastSettings();
+  const nextLast = { ...last, ...payload };
+  saveLastSettings(nextLast);
   
   updateEmbed();
 }
@@ -1404,10 +1423,10 @@ document.addEventListener("drop", (e) => {
   e.preventDefault();
 });
 
-ui.themeSelect.addEventListener("change", updateSettings);
-ui.notionBlockColorSelect.addEventListener("change", updateSettings);
-ui.addNewSelect.addEventListener("change", updateSettings);
-ui.fontSelect.addEventListener("change", updateSettings);
+ui.themeSelect.addEventListener("change", () => updateSettings('theme'));
+ui.notionBlockColorSelect.addEventListener("change", () => updateSettings('notion_block_color'));
+ui.addNewSelect.addEventListener("change", () => updateSettings('add_new_first'));
+ui.fontSelect.addEventListener("change", () => updateSettings('font_family'));
 ui.embedCode.addEventListener("click", () => ui.embedCode.select());
 ui.shareLink.addEventListener("click", () => ui.shareLink.select());
 
@@ -1791,7 +1810,8 @@ ui.clearMigrationBtn.addEventListener('click', clearMigration);
   pickr.on("save", (color) => {
     const colorString = color.toHEXA().toString();
     ui.bgColor.value = colorString;
-    updateSettings();
+    // 只更新背景顏色欄位，避免誤改其他設定
+    updateSettings('background_color');
   });
   
   // 載入上次的設定到 UI
