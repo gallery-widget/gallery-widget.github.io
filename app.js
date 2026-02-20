@@ -77,7 +77,8 @@ function getLastSettings() {
     theme: 'slideshow',
     background_color: '#101828',
     notion_block_color: 'default',
-    add_new_first: false
+    add_new_first: false,
+    font_family: 'noto_sans_tc'
   };
 }
 
@@ -116,6 +117,7 @@ const ui = {
   shareLink: document.getElementById("shareLink"),
   embedPreview: document.getElementById("embedPreview"),
   themeSelect: document.getElementById("themeSelect"),
+  fontSelect: document.getElementById("fontSelect"),
   bgColor: document.getElementById("bgColor"),
   notionBlockColorSelect: document.getElementById("notionBlockColorSelect"),
   addNewSelect: document.getElementById("addNewSelect"),
@@ -550,6 +552,7 @@ async function createAlbum(title) {
     background_color: lastSettings.background_color || "#101828",
     notion_block_color: lastSettings.notion_block_color || "default",
     add_new_first: lastSettings.add_new_first || false,
+     font_family: lastSettings.font_family || 'noto_sans_tc',
     sort_order: maxSortOrder + 1,
   };
 
@@ -581,6 +584,7 @@ async function createAlbum(title) {
   }
   ui.notionBlockColorSelect.value = data.notion_block_color || "default";
   ui.addNewSelect.value = data.add_new_first ? "first" : "last";
+  ui.fontSelect.value = data.font_family || 'noto_sans_tc';
   await loadImages();
   updateEmbed();
   return data;
@@ -606,6 +610,7 @@ async function loadAlbum(albumId) {
   }
   ui.notionBlockColorSelect.value = data.notion_block_color || "default";
   ui.addNewSelect.value = data.add_new_first ? "first" : "last";
+  ui.fontSelect.value = data.font_family || 'noto_sans_tc';
   await loadImages();
   updateEmbed();
   
@@ -1127,6 +1132,7 @@ async function updateSettings() {
     background_color: ui.bgColor.value.trim() || "#101828",
     notion_block_color: ui.notionBlockColorSelect.value,
     add_new_first: ui.addNewSelect.value === "first",
+    font_family: ui.fontSelect.value || 'noto_sans_tc',
   };
 
   const { error } = await supabase
@@ -1401,6 +1407,7 @@ document.addEventListener("drop", (e) => {
 ui.themeSelect.addEventListener("change", updateSettings);
 ui.notionBlockColorSelect.addEventListener("change", updateSettings);
 ui.addNewSelect.addEventListener("change", updateSettings);
+ui.fontSelect.addEventListener("change", updateSettings);
 ui.embedCode.addEventListener("click", () => ui.embedCode.select());
 ui.shareLink.addEventListener("click", () => ui.shareLink.select());
 
@@ -1794,6 +1801,7 @@ ui.clearMigrationBtn.addEventListener('click', clearMigration);
   pickr.setColor(lastSettings.background_color);
   ui.notionBlockColorSelect.value = lastSettings.notion_block_color;
   ui.addNewSelect.value = lastSettings.add_new_first ? "first" : "last";
+  ui.fontSelect.value = lastSettings.font_family || 'noto_sans_tc';
   
   // 先等待 refreshAuth 完成後再 loadAlbums，確保 state.user 已被正確設定
   await refreshAuth();

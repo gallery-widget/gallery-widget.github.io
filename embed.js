@@ -443,6 +443,12 @@ async function loadAlbum(albumId) {
   
   document.body.style.background = userBgColor;
   document.documentElement.style.background = userBgColor;
+
+  // 根據相簿設定切換字體（黑體 / 宋體）
+  const fontFamily = album.font_family || 'noto_sans_tc';
+  const fontClass = fontFamily === 'noto_serif_tc' ? 'embed-serif' : 'embed-sans';
+  document.body.classList.remove('embed-sans', 'embed-serif');
+  document.body.classList.add(fontClass);
   
   // 設定底層 Notion 主題背景（使用相簿設定中的 notion_block_color）
   updateNotionThemeBackground(album.notion_block_color || 'default');

@@ -808,6 +808,20 @@ h2, h3 {
   text-shadow: 0 0 6px rgba(0, 0, 0, 0.8), 0 1px 3px rgba(0, 0, 0, 0.6);
 }
 
+body.embed.embed-sans .slideshow-title,
+body.embed.embed-sans .slideshow-caption,
+body.embed.embed-sans .thumbnail-title,
+body.embed.embed-sans .thumbnail-caption {
+  font-family: "Space Grotesk", "Noto Sans TC", sans-serif;
+}
+
+body.embed.embed-serif .slideshow-title,
+body.embed.embed-serif .slideshow-caption,
+body.embed.embed-serif .thumbnail-title,
+body.embed.embed-serif .thumbnail-caption {
+  font-family: "Noto Serif TC", "Noto Sans TC", serif;
+}
+
 .image-link-btn {
   display: inline-flex;
   align-items: center;
