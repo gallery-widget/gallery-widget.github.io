@@ -63,6 +63,42 @@ let pickr = null;
 let loadAlbumsRun = 0;
 let draggedAlbumElement = null;
 
+// 判斷是否為行動裝置（以視窗寬度與指標型態為準）
+function isMobileDevice() {
+  if (window.matchMedia) {
+    try {
+      if (window.matchMedia('(pointer: coarse)').matches) return true;
+    } catch (e) {
+      // ignore
+    }
+    try {
+      if (window.matchMedia('(max-width: 720px)').matches) return true;
+    } catch (e) {
+      // ignore
+    }
+  }
+  return window.innerWidth <= 720;
+}
+
+// 清除卡片上的手機排序顯示
+function clearMobileSortHighlights(selector) {
+  document.querySelectorAll(selector + '.show-mobile-sort').forEach((el) => {
+    el.classList.remove('show-mobile-sort');
+  });
+}
+
+// 切換指定卡片的手機排序顯示
+function toggleMobileSortHighlight(card, selector) {
+  if (!isMobileDevice()) return;
+  const fullSelector = selector + '.show-mobile-sort';
+  document.querySelectorAll(fullSelector).forEach((el) => {
+    if (el !== card) {
+      el.classList.remove('show-mobile-sort');
+    }
+  });
+  card.classList.toggle('show-mobile-sort');
+}
+
 // 設定記憶功能 - 從 localStorage 讀取上次的設定
 function getLastSettings() {
   try {
@@ -77,7 +113,7 @@ function getLastSettings() {
     theme: 'slideshow',
     background_color: '#101828',
     notion_block_color: 'default',
-    add_new_first: false,
+    scroll_direction: 'ltr',
     font_family: 'noto_sans_tc'
   };
 }
@@ -120,7 +156,7 @@ const ui = {
   fontSelect: document.getElementById("fontSelect"),
   bgColor: document.getElementById("bgColor"),
   notionBlockColorSelect: document.getElementById("notionBlockColorSelect"),
-  addNewSelect: document.getElementById("addNewSelect"),
+  scrollDirectionSelect: document.getElementById("scrollDirectionSelect"),
   imageList: document.getElementById("imageList"),
   loginModal: document.getElementById("loginModal"),
   openLoginModalBtn: document.getElementById("openLoginModalBtn"),
@@ -342,7 +378,7 @@ async function loadAlbums() {
 
     const card = document.createElement("div");
     card.className = "album-card";
-    card.draggable = true;
+    card.draggable = !isMobileDevice();
     card.dataset.albumId = album.id;
     card.dataset.index = albums.indexOf(album);
     if (state.album && state.album.id === album.id) {
@@ -406,7 +442,38 @@ async function loadAlbums() {
     });
     actions.appendChild(deleteBtn);
 
-    // 拖曳事件
+    // 手機版排序控制：上下箭頭
+    const mobileSort = document.createElement("div");
+    mobileSort.className = "mobile-sort-controls";
+
+    const upBtn = document.createElement("button");
+    upBtn.className = "btn ghost mobile-sort-btn mobile-sort-up";
+    upBtn.textContent = "↑";
+    upBtn.addEventListener("click", async (e) => {
+      e.stopPropagation();
+      await handleMobileAlbumReorder(album.id, -1);
+    });
+
+    const downBtn = document.createElement("button");
+    downBtn.className = "btn ghost mobile-sort-btn mobile-sort-down";
+    downBtn.textContent = "↓";
+    downBtn.addEventListener("click", async (e) => {
+      e.stopPropagation();
+      await handleMobileAlbumReorder(album.id, 1);
+    });
+
+    const cardIndex = albums.indexOf(album);
+    if (cardIndex === 0) {
+      upBtn.disabled = true;
+    }
+    if (cardIndex === albums.length - 1) {
+      downBtn.disabled = true;
+    }
+
+    mobileSort.appendChild(upBtn);
+    mobileSort.appendChild(downBtn);
+
+    // 拖曳事件（僅桌機有效，行動裝置 draggable 為 false）
     card.addEventListener("dragstart", handleAlbumDragStart);
     card.addEventListener("dragover", handleAlbumDragOver);
     card.addEventListener("dragenter", handleAlbumDragEnter);
@@ -414,14 +481,18 @@ async function loadAlbums() {
     card.addEventListener("drop", handleAlbumDrop);
     card.addEventListener("dragend", handleAlbumDragEnd);
 
-    // 点击卡片选中相册
+    // 點擊卡片：桌機只選擇相簿，手機同時切換排序控制顯示
     card.addEventListener("click", () => {
+      if (isMobileDevice()) {
+        toggleMobileSortHighlight(card, ".album-card");
+      }
       loadAlbum(album.id);
     });
 
     card.appendChild(preview);
     card.appendChild(input);
     card.appendChild(actions);
+    card.appendChild(mobileSort);
     ui.albumList.appendChild(card);
   }
 
@@ -551,8 +622,8 @@ async function createAlbum(title) {
     theme: lastSettings.theme || "slideshow",
     background_color: lastSettings.background_color || "#101828",
     notion_block_color: lastSettings.notion_block_color || "default",
-    add_new_first: lastSettings.add_new_first || false,
-     font_family: lastSettings.font_family || 'noto_sans_tc',
+    scroll_direction: lastSettings.scroll_direction || 'ltr',
+    font_family: lastSettings.font_family || 'noto_sans_tc',
     sort_order: maxSortOrder + 1,
   };
 
@@ -583,7 +654,7 @@ async function createAlbum(title) {
     pickr.setColor(data.background_color || "#101828");
   }
   ui.notionBlockColorSelect.value = data.notion_block_color || "default";
-  ui.addNewSelect.value = data.add_new_first ? "first" : "last";
+  ui.scrollDirectionSelect.value = data.scroll_direction || 'ltr';
   ui.fontSelect.value = data.font_family || 'noto_sans_tc';
   await loadImages();
   updateEmbed();
@@ -609,7 +680,7 @@ async function loadAlbum(albumId) {
     pickr.setColor(data.background_color || "#101828");
   }
   ui.notionBlockColorSelect.value = data.notion_block_color || "default";
-  ui.addNewSelect.value = data.add_new_first ? "first" : "last";
+  ui.scrollDirectionSelect.value = data.scroll_direction || 'ltr';
   ui.fontSelect.value = data.font_family || 'noto_sans_tc';
   await loadImages();
   updateEmbed();
@@ -659,7 +730,7 @@ function renderImages() {
   state.images.forEach((image, index) => {
     const card = document.createElement("div");
     card.className = "image-card";
-    card.draggable = true;
+    card.draggable = !isMobileDevice();
     card.dataset.imageId = image.id;
     card.dataset.index = index;
 
@@ -696,7 +767,37 @@ function renderImages() {
       actions.appendChild(remove);
     }
 
-    // 拖拽事件
+    // 手機版排序控制：上下箭頭
+    const mobileSort = document.createElement("div");
+    mobileSort.className = "mobile-sort-controls";
+
+    const upBtn = document.createElement("button");
+    upBtn.className = "btn ghost mobile-sort-btn mobile-sort-up";
+    upBtn.textContent = "↑";
+    upBtn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      handleMobileImageReorder(image.id, -1);
+    });
+
+    const downBtn = document.createElement("button");
+    downBtn.className = "btn ghost mobile-sort-btn mobile-sort-down";
+    downBtn.textContent = "↓";
+    downBtn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      handleMobileImageReorder(image.id, 1);
+    });
+
+    if (index === 0) {
+      upBtn.disabled = true;
+    }
+    if (index === state.images.length - 1) {
+      downBtn.disabled = true;
+    }
+
+    mobileSort.appendChild(upBtn);
+    mobileSort.appendChild(downBtn);
+
+    // 拖拽事件（僅桌機有效，行動裝置 draggable 為 false）
     card.addEventListener("dragstart", handleDragStart);
     card.addEventListener("dragover", handleDragOver);
     card.addEventListener("dragenter", handleDragEnter);
@@ -704,10 +805,21 @@ function renderImages() {
     card.addEventListener("drop", handleDrop);
     card.addEventListener("dragend", handleDragEnd);
 
+    // 點擊卡片：手機切換排序控制顯示
+    card.addEventListener("click", (e) => {
+      if (!isMobileDevice()) return;
+      const target = e.target;
+      if (target && (target.tagName === "INPUT" || target.tagName === "BUTTON")) {
+        return;
+      }
+      toggleMobileSortHighlight(card, ".image-card");
+    });
+
     card.appendChild(img);
     card.appendChild(input);
     card.appendChild(linkInput);
     card.appendChild(actions);
+    card.appendChild(mobileSort);
     ui.imageList.appendChild(card);
   });
 }
@@ -785,6 +897,24 @@ async function updateImageOrder() {
       .update({ sort_order: update.sort_order })
       .eq("id", update.id);
   }
+}
+
+// 手機版：圖片上下移動排序
+function handleMobileImageReorder(imageId, direction) {
+  const index = state.images.findIndex((img) => img.id === imageId);
+  if (index === -1) return;
+  const newIndex = index + direction;
+  if (newIndex < 0 || newIndex >= state.images.length) return;
+
+  const [moved] = state.images.splice(index, 1);
+  state.images.splice(newIndex, 0, moved);
+
+  (async () => {
+    await updateImageOrder();
+    updateEmbed();
+  })();
+
+  renderImages();
 }
 
 // 相簿拖曳處理函數
@@ -899,6 +1029,37 @@ async function updateAlbumOrder(albums) {
       .update({ sort_order: update.sort_order })
       .eq("id", update.id);
   }
+}
+
+// 手機版：相簿上下移動排序
+async function handleMobileAlbumReorder(albumId, direction) {
+  if (!state.user) {
+    showToast('登入後才能調整相簿順序', 'warning');
+    return;
+  }
+
+  const { data: albums, error } = await supabase
+    .from("albums")
+    .select("id, sort_order")
+    .eq("owner_id", state.user.id)
+    .order("sort_order", { ascending: true, nullsFirst: false })
+    .order("created_at", { ascending: false });
+
+  if (error || !albums) {
+    setStatus('無法更新相簿順序', 'error');
+    return;
+  }
+
+  const index = albums.findIndex((a) => a.id === albumId);
+  if (index === -1) return;
+  const newIndex = index + direction;
+  if (newIndex < 0 || newIndex >= albums.length) return;
+
+  const [movedAlbum] = albums.splice(index, 1);
+  albums.splice(newIndex, 0, movedAlbum);
+
+  await updateAlbumOrder(albums);
+  await loadAlbums();
 }
 
 async function updateCaption(imageId, caption) {
@@ -1123,7 +1284,7 @@ async function deleteAlbum(albumId) {
 }
 
 // 更新相簿設定：僅更新被更動的欄位，避免誤改其他欄位（特別是字體）
-// changedField 可為：'theme' | 'background_color' | 'notion_block_color' | 'add_new_first' | 'font_family'
+// changedField 可為：'theme' | 'background_color' | 'notion_block_color' | 'scroll_direction' | 'font_family'
 async function updateSettings(changedField) {
   if (!state.album) {
     return;
@@ -1140,8 +1301,9 @@ async function updateSettings(changedField) {
   if (!changedField || changedField === 'notion_block_color') {
     payload.notion_block_color = ui.notionBlockColorSelect.value;
   }
-  if (!changedField || changedField === 'add_new_first') {
-    payload.add_new_first = ui.addNewSelect.value === "first";
+  if (!changedField || changedField === 'scroll_direction') {
+    const dir = ui.scrollDirectionSelect.value === 'rtl' ? 'rtl' : 'ltr';
+    payload.scroll_direction = dir;
   }
   if (!changedField || changedField === 'font_family') {
     payload.font_family = ui.fontSelect.value || 'noto_sans_tc';
@@ -1240,8 +1402,6 @@ async function uploadImages(files) {
   const baseOrder = state.images.length
     ? state.images[state.images.length - 1].sort_order
     : 0;
-  const addFirst = state.album.add_new_first;
-  const minOrder = state.images.length ? state.images[0].sort_order : 0;
 
   for (let i = 0; i < files.length; i += 1) {
     const file = files[i];
@@ -1283,7 +1443,7 @@ async function uploadImages(files) {
       imagePath = path; // Supabase 儲存相對路徑
     }
 
-    const sortOrder = addFirst ? minOrder - (i + 1) : baseOrder + (i + 1);
+    const sortOrder = baseOrder + (i + 1);
     const { error: insertError } = await supabase
       .from("images")
       .insert({
@@ -1425,7 +1585,7 @@ document.addEventListener("drop", (e) => {
 
 ui.themeSelect.addEventListener("change", () => updateSettings('theme'));
 ui.notionBlockColorSelect.addEventListener("change", () => updateSettings('notion_block_color'));
-ui.addNewSelect.addEventListener("change", () => updateSettings('add_new_first'));
+ui.scrollDirectionSelect.addEventListener("change", () => updateSettings('scroll_direction'));
 ui.fontSelect.addEventListener("change", () => updateSettings('font_family'));
 ui.embedCode.addEventListener("click", () => ui.embedCode.select());
 ui.shareLink.addEventListener("click", () => ui.shareLink.select());
@@ -1820,7 +1980,7 @@ ui.clearMigrationBtn.addEventListener('click', clearMigration);
   ui.bgColor.value = lastSettings.background_color;
   pickr.setColor(lastSettings.background_color);
   ui.notionBlockColorSelect.value = lastSettings.notion_block_color;
-  ui.addNewSelect.value = lastSettings.add_new_first ? "first" : "last";
+  ui.scrollDirectionSelect.value = lastSettings.scroll_direction || 'ltr';
   ui.fontSelect.value = lastSettings.font_family || 'noto_sans_tc';
   
   // 先等待 refreshAuth 完成後再 loadAlbums，確保 state.user 已被正確設定

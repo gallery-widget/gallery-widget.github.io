@@ -16,7 +16,7 @@
 - title text
 - theme text (slideshow | thumbnail)
 - background_color text (支援 rgba)
-- add_new_first boolean default false
+- scroll_direction text default 'ltr' -- 捲動方向（ltr: 由左至右, rtl: 由右至左）
 - sort_order integer (nullable, 用於拖曳排序)
 - created_at timestamp default now()
 

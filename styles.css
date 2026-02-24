@@ -479,6 +479,39 @@ h2, h3 {
   box-shadow: none;
 }
 
+/* 手機版相簿／圖片排序控制 */
+.mobile-sort-controls {
+  position: absolute;
+  top: 8px;
+  left: 8px;
+  display: none;
+  gap: 4px;
+  z-index: 11;
+}
+
+.mobile-sort-btn {
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 16px;
+}
+
+/* 僅在手機尺寸且卡片被啟用時顯示排序控制 */
+@media (max-width: 720px) {
+  .album-card.show-mobile-sort .mobile-sort-controls,
+  .image-card.show-mobile-sort .mobile-sort-controls {
+    display: flex;
+  }
+
+  /* 手機不強調拖曳游標 */
+  .image-card {
+    cursor: default;
+  }
+}
+
 .list {
   display: grid;
   gap: 12px;
@@ -898,6 +931,11 @@ body.embed.embed-serif .thumbnail-caption {
   overflow-y: hidden;
 }
 
+/* 右至左：點點順序反轉，第一張在最右邊 */
+.embed-grid.slideshow.embed-rtl .slideshow-dots {
+  flex-direction: row-reverse;
+}
+
 .slideshow-dots::-webkit-scrollbar {
   height: 0;
 }
@@ -1072,6 +1110,11 @@ body.embed.embed-serif .thumbnail-caption {
   padding: 0 8px;
   justify-content: center;
   scroll-behavior: smooth;
+}
+
+/* 右至左：縮圖列順序反轉，第一張在最右邊 */
+.embed-grid.thumbnail.embed-rtl .thumbnail-bar {
+  flex-direction: row-reverse;
 }
 
 .thumbnail-bar::-webkit-scrollbar {

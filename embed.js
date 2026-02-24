@@ -208,18 +208,24 @@ function createMenuSystem(container, menuClass, menuItems) {
  * @param {HTMLElement} imagesScroll - 圖片捲動容器
  * @param {Array} images - 圖片數據
  * @param {Object} ui - UI 元素 { caption, linkButton, indicators, thumbBar?, scrollThumbBarToIndex? }
+ * @param {string} scrollDirection - 捲動方向（'ltr' | 'rtl'）
  * @returns {Object} { goToSlide, currentIndex }
  */
-function createCarouselController(imagesScroll, images, ui) {
-  let currentIndex = 0;
+function createCarouselController(imagesScroll, images, ui, scrollDirection = 'ltr') {
+  let currentIndex = -1;
   let isAnimating = false;
 
   const goToSlide = (newIndex) => {
     if (isAnimating || newIndex === currentIndex) return;
     isAnimating = true;
 
-    // 計算捲動距離（負值向左移動）
-    const translateX = -(newIndex * 100);
+    // 計算捲動距離
+    // ltr：index 0 在最左邊，往右排；rtl：index 0 在最右邊，往左排
+    let visualIndex = newIndex;
+    if (scrollDirection === 'rtl') {
+      visualIndex = (images.length - 1) - newIndex;
+    }
+    const translateX = -(visualIndex * 100);
     imagesScroll.style.transform = `translateX(${translateX}%)`;
 
     // 更新字幕和連結按鈕
@@ -252,6 +258,9 @@ function createCarouselController(imagesScroll, images, ui) {
       isAnimating = false;
     }, 250);
   };
+  
+  // 初始化顯示第一張（index 0），確保 RTL 時一開始就是圖1
+  goToSlide(0);
 
   return { goToSlide, get currentIndex() { return currentIndex; } };
 }
@@ -264,17 +273,22 @@ function createCarouselController(imagesScroll, images, ui) {
  * @param {Function} goToSlide - 切換函數
  * @param {number} imageCount - 圖片總數
  * @param {Function} getCurrentIndex - 獲取當前索引
+ * @param {string} scrollDirection - 捲動方向（'ltr' | 'rtl'），用來決定左右箭頭的「前/後」
  */
-function setupNavigation(prevBtn, nextBtn, imageWrapper, goToSlide, imageCount, getCurrentIndex) {
+function setupNavigation(prevBtn, nextBtn, imageWrapper, goToSlide, imageCount, getCurrentIndex, scrollDirection = 'ltr') {
   prevBtn.addEventListener("click", () => {
     const currentIndex = getCurrentIndex();
-    const newIndex = (currentIndex - 1 + imageCount) % imageCount;
+    // LTR：左鍵 = 上一張；RTL：左鍵 = 下一張（順著閱讀方向）
+    const delta = scrollDirection === 'rtl' ? 1 : -1;
+    const newIndex = (currentIndex + delta + imageCount) % imageCount;
     goToSlide(newIndex);
   });
 
   nextBtn.addEventListener("click", () => {
     const currentIndex = getCurrentIndex();
-    const newIndex = (currentIndex + 1) % imageCount;
+    // LTR：右鍵 = 下一張；RTL：右鍵 = 上一張
+    const delta = scrollDirection === 'rtl' ? -1 : 1;
+    const newIndex = (currentIndex + delta + imageCount) % imageCount;
     goToSlide(newIndex);
   });
 
@@ -453,7 +467,8 @@ async function loadAlbum(albumId) {
   // 設定底層 Notion 主題背景（使用相簿設定中的 notion_block_color）
   updateNotionThemeBackground(album.notion_block_color || 'default');
   
-  ui.grid.className = `embed-grid ${album.theme || "slideshow"}`;
+  const directionClass = album.scroll_direction === 'rtl' ? 'embed-rtl' : 'embed-ltr';
+  ui.grid.className = `embed-grid ${album.theme || "slideshow"} ${directionClass}`;
 
     const { data: images, error: imageError } = await supabase
       .from("images")
@@ -497,7 +512,10 @@ function renderSlideshow(album, images) {
   const imagesScroll = document.createElement("div");
   imagesScroll.className = "slideshow-images-scroll";
   
-  images.forEach((image) => {
+  // 視覺上的排列：rtl 時反轉顯示順序，但邏輯順序仍用原本的 images
+  const visualImages = album.scroll_direction === 'rtl' ? [...images].reverse() : images;
+
+  visualImages.forEach((image) => {
     const slide = document.createElement("div");
     slide.className = "slideshow-image-slide";
     
@@ -557,7 +575,7 @@ function renderSlideshow(album, images) {
     caption,
     linkButton,
     indicators: Array.from(dots.querySelectorAll(".dot"))
-  });
+  }, album.scroll_direction || 'ltr');
   
   // 塞 dots 點擊事件
   dots.querySelectorAll(".dot").forEach((dot, i) => {
@@ -583,8 +601,8 @@ function renderSlideshow(album, images) {
   
   imageWrapper.appendChild(imagesScroll);
   
-  // 設置導航
-  setupNavigation(prevBtn, nextBtn, imageWrapper, carousel.goToSlide, images.length, () => carousel.currentIndex);
+  // 設置導航（左右箭頭依捲動方向決定前/後）
+  setupNavigation(prevBtn, nextBtn, imageWrapper, carousel.goToSlide, images.length, () => carousel.currentIndex, album.scroll_direction || 'ltr');
 
   container.appendChild(overlay);
   container.appendChild(imageWrapper);
@@ -604,7 +622,10 @@ function renderThumbnail(album, images) {
   const imagesScroll = document.createElement("div");
   imagesScroll.className = "thumbnail-images-scroll";
   
-  images.forEach((image) => {
+  // 視覺上的排列：rtl 時反轉顯示順序，但邏輯順序仍用原本的 images
+  const visualImages = album.scroll_direction === 'rtl' ? [...images].reverse() : images;
+
+  visualImages.forEach((image) => {
     const slide = document.createElement("div");
     slide.className = "thumbnail-image-slide";
     
@@ -677,7 +698,7 @@ function renderThumbnail(album, images) {
     indicators: thumbnails,
     thumbBar,
     scrollThumbBarToIndex
-  });
+  }, album.scroll_direction || 'ltr');
   
   // 為縮略圖添加點擊事件
   thumbnails.forEach((thumb, i) => {
@@ -747,7 +768,7 @@ function renderThumbnail(album, images) {
     updateThumbBarAlignment();
   }, 1000);
   
-  // 設置導航
+  // 設置導航（左右箭頭依捲動方向決定前/後）
   const prevBtn = document.createElement("button");
   prevBtn.className = "slideshow-btn prev";
   prevBtn.textContent = "‹";
@@ -756,7 +777,7 @@ function renderThumbnail(album, images) {
   nextBtn.className = "slideshow-btn next";
   nextBtn.textContent = "›";
   
-  setupNavigation(prevBtn, nextBtn, imageWrapper, carousel.goToSlide, images.length, () => carousel.currentIndex);
+  setupNavigation(prevBtn, nextBtn, imageWrapper, carousel.goToSlide, images.length, () => carousel.currentIndex, album.scroll_direction || 'ltr');
   
   thumbContainer.appendChild(thumbBar);
   
