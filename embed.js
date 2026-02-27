@@ -276,28 +276,80 @@ function createCarouselController(imagesScroll, images, ui, scrollDirection = 'l
  * @param {string} scrollDirection - 捲動方向（'ltr' | 'rtl'），用來決定左右箭頭的「前/後」
  */
 function setupNavigation(prevBtn, nextBtn, imageWrapper, goToSlide, imageCount, getCurrentIndex, scrollDirection = 'ltr') {
-  prevBtn.addEventListener("click", () => {
-    const currentIndex = getCurrentIndex();
-    // LTR：左鍵 = 上一張；RTL：左鍵 = 下一張（順著閱讀方向）
-    const delta = scrollDirection === 'rtl' ? 1 : -1;
-    const newIndex = (currentIndex + delta + imageCount) % imageCount;
-    goToSlide(newIndex);
-  });
+  const LONG_PRESS_DELAY = 400; // 長按判定時間（毫秒）
+  const REPEAT_INTERVAL = 100;  // 長按後自動切換的間隔
 
-  nextBtn.addEventListener("click", () => {
-    const currentIndex = getCurrentIndex();
-    // LTR：右鍵 = 下一張；RTL：右鍵 = 上一張
-    const delta = scrollDirection === 'rtl' ? -1 : 1;
-    const newIndex = (currentIndex + delta + imageCount) % imageCount;
-    goToSlide(newIndex);
-  });
+  function attachPressHandler(target, getDelta) {
+    let pressTimer = null;
+    let repeatTimer = null;
 
-  // 點擊大圖自動輪替到下一張
-  imageWrapper.addEventListener("click", () => {
-    const currentIndex = getCurrentIndex();
-    const newIndex = (currentIndex + 1) % imageCount;
-    goToSlide(newIndex);
-  });
+    const clearTimers = () => {
+      if (pressTimer) {
+        clearTimeout(pressTimer);
+        pressTimer = null;
+      }
+      if (repeatTimer) {
+        clearInterval(repeatTimer);
+        repeatTimer = null;
+      }
+    };
+
+    const stepOnce = () => {
+      const currentIndex = getCurrentIndex();
+      if (currentIndex == null || imageCount <= 0) return;
+      const delta = getDelta();
+      const newIndex = (currentIndex + delta + imageCount) % imageCount;
+      goToSlide(newIndex);
+    };
+
+    const onPointerDown = (event) => {
+      // 只處理主鍵或觸控
+      if (event.type === 'mousedown' && event.button !== 0) return;
+      event.preventDefault();
+
+      clearTimers();
+
+      // 預先記錄這是一個可能的「點擊」
+      let longPressed = false;
+
+      pressTimer = setTimeout(() => {
+        longPressed = true;
+        stepOnce();
+        repeatTimer = setInterval(stepOnce, REPEAT_INTERVAL);
+      }, LONG_PRESS_DELAY);
+
+      const onPointerUp = (e) => {
+        e.preventDefault();
+        // 如果還沒進入長按階段，當作一般點擊處理一次
+        if (pressTimer && !longPressed) {
+          stepOnce();
+        }
+        clearTimers();
+
+        window.removeEventListener('mouseup', onPointerUp);
+        window.removeEventListener('mouseleave', onPointerUp);
+        window.removeEventListener('touchend', onPointerUp);
+        window.removeEventListener('touchcancel', onPointerUp);
+      };
+
+      window.addEventListener('mouseup', onPointerUp);
+      window.addEventListener('mouseleave', onPointerUp);
+      window.addEventListener('touchend', onPointerUp);
+      window.addEventListener('touchcancel', onPointerUp);
+    };
+
+    target.addEventListener('mousedown', onPointerDown);
+    target.addEventListener('touchstart', onPointerDown, { passive: false });
+  }
+
+  // 左箭頭：LTR = 上一張；RTL = 下一張（順著閱讀方向）
+  attachPressHandler(prevBtn, () => (scrollDirection === 'rtl' ? 1 : -1));
+
+  // 右箭頭：LTR = 下一張；RTL = 上一張
+  attachPressHandler(nextBtn, () => (scrollDirection === 'rtl' ? -1 : 1));
+
+  // 大圖：永遠往下一張
+  attachPressHandler(imageWrapper, () => 1);
   imageWrapper.style.cursor = "pointer";
 
   return { prevBtn, nextBtn };
