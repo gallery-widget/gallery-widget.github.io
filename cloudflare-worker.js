@@ -100,6 +100,114 @@ export default {
       if (request.method === 'GET') {
         const url = new URL(request.url);
         
+        // 管理用：列出所有 R2 物件 key（需 ADMIN_TOKEN）
+        if (url.pathname === '/admin/r2-objects') {
+          const token = url.searchParams.get('token');
+          const adminToken = env.ADMIN_TOKEN;
+
+          if (!adminToken || token !== adminToken) {
+            return new Response(
+              JSON.stringify({ error: 'Unauthorized' }),
+              { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+            );
+          }
+
+          if (!env.ALBUM_BUCKET) {
+            return new Response(
+              JSON.stringify({ error: 'R2 Bucket 未綁定' }),
+              { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+            );
+          }
+
+          try {
+            let cursor = undefined;
+            const objects = [];
+
+            do {
+              const list = await env.ALBUM_BUCKET.list({ limit: 1000, cursor });
+              for (const obj of list.objects || []) {
+                objects.push({
+                  key: obj.key,
+                  size: obj.size,
+                  uploaded: obj.uploaded,
+                });
+              }
+              cursor = list.truncated ? list.cursor : undefined;
+            } while (cursor);
+
+            return new Response(
+              JSON.stringify({ success: true, objects }),
+              { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+            );
+          } catch (error) {
+            return new Response(
+              JSON.stringify({ error: '讀取 R2 物件列表失敗: ' + error.message }),
+              { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+            );
+          }
+        }
+
+        // 管理用：取得 R2 統計資訊（需 ADMIN_TOKEN）
+        if (url.pathname === '/admin/r2-stats') {
+          const token = url.searchParams.get('token');
+          const adminToken = env.ADMIN_TOKEN;
+
+          if (!adminToken || token !== adminToken) {
+            return new Response(
+              JSON.stringify({ error: 'Unauthorized' }),
+              { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+            );
+          }
+
+          if (!env.ALBUM_BUCKET) {
+            return new Response(
+              JSON.stringify({ error: 'R2 Bucket 未綁定' }),
+              { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+            );
+          }
+
+          try {
+            let cursor = undefined;
+            let totalObjects = 0;
+            let totalBytes = 0;
+            const albumCounts = {};
+
+            do {
+              const list = await env.ALBUM_BUCKET.list({ limit: 1000, cursor });
+              for (const obj of list.objects || []) {
+                totalObjects++;
+                if (typeof obj.size === 'number') {
+                  totalBytes += obj.size;
+                }
+                const key = obj.key || '';
+                const albumId = key.split('/')[0] || '';
+                if (albumId) {
+                  albumCounts[albumId] = (albumCounts[albumId] || 0) + 1;
+                }
+              }
+              cursor = list.truncated ? list.cursor : undefined;
+            } while (cursor);
+
+            const responseBody = {
+              success: true,
+              totalObjects,
+              totalAlbums: Object.keys(albumCounts).length,
+              totalBytes,
+              albums: albumCounts,
+            };
+
+            return new Response(
+              JSON.stringify(responseBody),
+              { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+            );
+          } catch (error) {
+            return new Response(
+              JSON.stringify({ error: '讀取 R2 資訊失敗: ' + error.message }),
+              { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+            );
+          }
+        }
+        
         // 處理圖片轉換請求：/transform?key=...&quality=...&format=...
         if (url.pathname === '/transform' || url.pathname.endsWith('/transform')) {
           const objectKey = url.searchParams.get('key');

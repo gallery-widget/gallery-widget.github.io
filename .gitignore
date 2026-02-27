@@ -68,3 +68,4 @@ logs/
 migrate-to-r2.js
 migrate-to-r2.html
 package.json
+check-ghost-albums.js
