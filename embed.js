@@ -132,7 +132,13 @@ function createImageLinkButton() {
       <path d="M13.41 10.59a1.99 1.99 0 0 0-2.82 0l-3.88 3.88a2 2 0 1 0 2.83 2.83l1.29-1.3a1 1 0 0 1 1.41 1.42l-1.29 1.29a4 4 0 0 1-5.66-5.66l3.88-3.88a4 4 0 0 1 5.66 0 1 1 0 1 1-1.42 1.42z" />
     </svg>
   `;
-  // 阻止點擊事件冒泡到父容器，防止觸發圖片切換
+  // 阻止連結按鈕的事件冒泡到父容器，防止觸發圖片切換/長按
+  link.addEventListener("mousedown", (event) => {
+    event.stopPropagation();
+  });
+  link.addEventListener("touchstart", (event) => {
+    event.stopPropagation();
+  }, { passive: false });
   link.addEventListener("click", (event) => {
     event.stopPropagation();
   });
