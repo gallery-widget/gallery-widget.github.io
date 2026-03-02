@@ -78,6 +78,13 @@ const ui = {
   grid: document.getElementById("embedGrid"),
 };
 
+// 簡單判斷是否為觸控裝置，用來區分事件綁定邏輯
+const IS_TOUCH_DEVICE =
+  typeof window !== 'undefined' && (
+    'ontouchstart' in window ||
+    (navigator && (navigator.maxTouchPoints > 0 || navigator.msMaxTouchPoints > 0))
+  );
+
 function getAlbumId() {
   const params = new URLSearchParams(window.location.search);
   return params.get("album");
@@ -150,6 +157,14 @@ function createMenuSystem(container, menuClass, menuItems) {
   menuButton.setAttribute("aria-label", "開啟選單");
   menuButton.textContent = "⋯";
 
+  // 阻止按下選單按鈕時事件冒泡到圖片容器，避免觸發切換圖片
+  menuButton.addEventListener("mousedown", (event) => {
+    event.stopPropagation();
+  });
+  menuButton.addEventListener("touchstart", (event) => {
+    event.stopPropagation();
+  }, { passive: false });
+
   const menu = document.createElement("div");
   menu.className = menuClass;
   menu.setAttribute("role", "menu");
@@ -174,6 +189,13 @@ function createMenuSystem(container, menuClass, menuItems) {
     btn.type = "button";
     btn.className = menuClass.replace("menu", "menu-item");
     btn.textContent = item.label;
+    // 同樣阻止選單項目按下時冒泡，避免觸發圖片點擊/長按
+    btn.addEventListener("mousedown", (event) => {
+      event.stopPropagation();
+    });
+    btn.addEventListener("touchstart", (event) => {
+      event.stopPropagation();
+    }, { passive: false });
     btn.addEventListener("click", (event) => {
       event.stopPropagation(); // 阻止事件冒泡，防止觸發圖片切換
       item.action();
@@ -338,8 +360,13 @@ function setupNavigation(prevBtn, nextBtn, imageWrapper, goToSlide, imageCount, 
       window.addEventListener('touchcancel', onPointerUp);
     };
 
-    target.addEventListener('mousedown', onPointerDown);
-    target.addEventListener('touchstart', onPointerDown, { passive: false });
+    if (IS_TOUCH_DEVICE) {
+      // 觸控裝置僅使用 touch 事件，避免瀏覽器產生的模擬 mousedown 造成重複觸發
+      target.addEventListener('touchstart', onPointerDown, { passive: false });
+    } else {
+      // 非觸控環境只使用滑鼠事件
+      target.addEventListener('mousedown', onPointerDown);
+    }
   }
 
   // 左箭頭：LTR = 上一張；RTL = 下一張（順著閱讀方向）
