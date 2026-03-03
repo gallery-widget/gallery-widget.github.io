@@ -1361,9 +1361,24 @@ function updateEmbed() {
 
 async function prepareImage(file) {
   const image = await createImageBitmap(file);
-  const ratio = Math.min(1, MAX_IMAGE_SIZE / Math.max(image.width, image.height));
-  const targetWidth = Math.round(image.width * ratio);
-  const targetHeight = Math.round(image.height * ratio);
+  const originalWidth = image.width;
+  const originalHeight = image.height;
+
+  // 如果是 GIF 或 WebP，保留原始檔案（包含動畫與透明）
+  if (file.type === "image/gif" || file.type === "image/webp") {
+    const extension = file.type === "image/gif" ? "gif" : "webp";
+    return {
+      blob: file,
+      width: originalWidth,
+      height: originalHeight,
+      extension,
+      mimeType: file.type,
+    };
+  }
+
+  const ratio = Math.min(1, MAX_IMAGE_SIZE / Math.max(originalWidth, originalHeight));
+  const targetWidth = Math.round(originalWidth * ratio);
+  const targetHeight = Math.round(originalHeight * ratio);
 
   const canvas = document.createElement("canvas");
   canvas.width = targetWidth;
@@ -1371,7 +1386,7 @@ async function prepareImage(file) {
   const ctx = canvas.getContext("2d");
   ctx.drawImage(image, 0, 0, targetWidth, targetHeight);
 
-  // 判斷是否保留原始格式
+  // 判斷是否保留原始格式（PNG 保留透明度，其它轉成 JPEG）
   const isOriginalPNG = file.type === "image/png";
   const outputFormat = isOriginalPNG ? "image/png" : "image/jpeg";
   const outputQuality = isOriginalPNG ? 0.92 : 0.85;
@@ -1380,7 +1395,13 @@ async function prepareImage(file) {
   return new Promise((resolve) => {
     canvas.toBlob(
       (blob) => {
-        resolve({ blob, width: targetWidth, height: targetHeight, extension: fileExtension });
+        resolve({
+          blob,
+          width: targetWidth,
+          height: targetHeight,
+          extension: fileExtension,
+          mimeType: outputFormat,
+        });
       },
       outputFormat,
       outputQuality
@@ -1411,10 +1432,10 @@ async function uploadImages(files) {
     }
 
     setStatus(`處理中 ${file.name}...`, 'info');
-    const { blob, width, height, extension } = await prepareImage(file);
+    const { blob, width, height, extension, mimeType } = await prepareImage(file);
 
     const path = `${state.album.id}/${newId()}.${extension}`;
-    const contentType = extension === "png" ? "image/png" : "image/jpeg";
+    const contentType = mimeType;
 
     let imagePath; // 儲存路徑或 URL
     
@@ -1782,10 +1803,10 @@ async function migrateAlbumizrAlbum(albumUrl, albumIndex, totalAlbums) {
         const fileName = image.url.split('/').pop() || `image-${imageIndex}.jpg`;
         const file = new File([blob], fileName, { type: blob.type });
 
-        const { blob: processedBlob, width, height, extension } = await prepareImage(file);
+        const { blob: processedBlob, width, height, extension, mimeType } = await prepareImage(file);
 
         const path = `${album.id}/${newId()}.${extension}`;
-        const contentType = extension === "png" ? "image/png" : "image/jpeg";
+        const contentType = mimeType;
 
         let imagePath = path; // 用來儲存最終要保存到數據庫的路徑
         let uploadError = null;
