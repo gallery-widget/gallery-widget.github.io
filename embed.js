@@ -383,7 +383,6 @@ function setupNavigation(prevBtn, nextBtn, imageWrapper, goToSlide, imageCount, 
 
   // 大圖：永遠往下一張
   attachPressHandler(imageWrapper, () => 1);
-  imageWrapper.style.cursor = "pointer";
 
   return { prevBtn, nextBtn };
 }
