@@ -257,7 +257,15 @@ function createCarouselController(imagesScroll, images, ui, scrollDirection = 'l
     imagesScroll.style.transform = `translateX(${translateX}%)`;
 
     // 更新字幕和連結按鈕
-    ui.caption.textContent = images[newIndex].caption || "";
+    if (ui.caption) {
+      const captionText = images[newIndex].caption || "";
+      ui.caption.textContent = captionText;
+      if (captionText) {
+        ui.caption.classList.add("has-text");
+      } else {
+        ui.caption.classList.remove("has-text");
+      }
+    }
     setImageLink(ui.linkButton, images[newIndex].custom_link);
 
     // 更新指示器（dots 或 thumbnails），處理淡入淡出
@@ -619,11 +627,19 @@ function renderSlideshow(album, images) {
   
   const title = document.createElement("h1");
   title.className = "slideshow-title";
-  title.textContent = isOwner() ? album.title || "" : "";
+  const slideshowTitleText = isOwner() ? album.title || "" : "";
+  title.textContent = slideshowTitleText;
+  if (slideshowTitleText) {
+    title.classList.add("has-text");
+  }
   
   const caption = document.createElement("p");
   caption.className = "slideshow-caption";
-  caption.textContent = images[0].caption || "";
+  const slideshowCaptionText = images[0].caption || "";
+  caption.textContent = slideshowCaptionText;
+  if (slideshowCaptionText) {
+    caption.classList.add("has-text");
+  }
 
   const linkButton = createImageLinkButton();
   setImageLink(linkButton, images[0].custom_link);
@@ -729,11 +745,19 @@ function renderThumbnail(album, images) {
   
   const title = document.createElement("h1");
   title.className = "thumbnail-title";
-  title.textContent = isOwner() ? album.title || "" : "";
+  const thumbnailTitleText = isOwner() ? album.title || "" : "";
+  title.textContent = thumbnailTitleText;
+  if (thumbnailTitleText) {
+    title.classList.add("has-text");
+  }
   
   const caption = document.createElement("p");
   caption.className = "thumbnail-caption";
-  caption.textContent = images[0].caption || "";
+  const thumbnailCaptionText = images[0].caption || "";
+  caption.textContent = thumbnailCaptionText;
+  if (thumbnailCaptionText) {
+    caption.classList.add("has-text");
+  }
 
   const linkButton = createImageLinkButton();
   setImageLink(linkButton, images[0].custom_link);

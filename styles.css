@@ -841,10 +841,15 @@ h2, h3 {
 .slideshow-title,
 .thumbnail-title {
   font-family: "Space Grotesk", "Noto Sans TC", sans-serif;
-  margin: 0 0 8px 0;
+  margin: 0;
   font-size: clamp(20px, 2.4vw, 28px);
   font-weight: 900;
   color: var(--ink);
+}
+
+.slideshow-title.has-text,
+.thumbnail-title.has-text {
+  margin: 0 0 8px 0;
 }
 
 .slideshow-caption,
@@ -854,6 +859,11 @@ h2, h3 {
   font-size: clamp(14px, 1.6vw, 16px);
   font-weight: 700;
   color: var(--ink);
+}
+
+.slideshow-caption.has-text,
+.thumbnail-caption.has-text {
+  margin: 0 0 8px 0;
 }
 
 body.embed.embed-sans .slideshow-title,
@@ -876,7 +886,7 @@ body.embed.embed-serif .thumbnail-caption {
   justify-content: center;
   width: 28px;
   height: 28px;
-  margin-top: 8px;
+  margin-top: 0;
   border-radius: 999px;
   background: var(--overlay-backdrop-soft);
   border: 1px solid var(--ink-contrast);
