@@ -338,14 +338,12 @@ function setupNavigation(prevBtn, nextBtn, imageWrapper, goToSlide, imageCount, 
       goToSlide(newIndex);
     };
 
-    const onPointerDown = (event) => {
-      // 只處理主鍵或觸控
-      if (event.type === 'mousedown' && event.button !== 0) return;
+    // 滑鼠：維持原本的 preventDefault 避免選取文字等
+    const onMouseDown = (event) => {
+      if (event.button !== 0) return;
       event.preventDefault();
 
       clearTimers();
-
-      // 預先記錄這是一個可能的「點擊」
       let longPressed = false;
 
       pressTimer = setTimeout(() => {
@@ -354,32 +352,76 @@ function setupNavigation(prevBtn, nextBtn, imageWrapper, goToSlide, imageCount, 
         repeatTimer = setInterval(stepOnce, REPEAT_INTERVAL);
       }, LONG_PRESS_DELAY);
 
-      const onPointerUp = (e) => {
+      const onMouseUp = (e) => {
         e.preventDefault();
-        // 如果還沒進入長按階段，當作一般點擊處理一次
         if (pressTimer && !longPressed) {
           stepOnce();
         }
         clearTimers();
 
-        window.removeEventListener('mouseup', onPointerUp);
-        window.removeEventListener('mouseleave', onPointerUp);
-        window.removeEventListener('touchend', onPointerUp);
-        window.removeEventListener('touchcancel', onPointerUp);
+        window.removeEventListener('mouseup', onMouseUp);
+        window.removeEventListener('mouseleave', onMouseUp);
       };
 
-      window.addEventListener('mouseup', onPointerUp);
-      window.addEventListener('mouseleave', onPointerUp);
-      window.addEventListener('touchend', onPointerUp);
-      window.addEventListener('touchcancel', onPointerUp);
+      window.addEventListener('mouseup', onMouseUp);
+      window.addEventListener('mouseleave', onMouseUp);
+    };
+
+    // 觸控：不呼叫 preventDefault，並偵測滑動距離來區分「捲動」與「點擊/長按」
+    const onTouchStart = (event) => {
+      if (event.touches.length !== 1) return;
+
+      const touch = event.touches[0];
+      const startX = touch.clientX;
+      const startY = touch.clientY;
+      let longPressed = false;
+      let moved = false;
+
+      clearTimers();
+
+      pressTimer = setTimeout(() => {
+        if (moved) return; // 使用者已開始滑動，視為捲動，不觸發長按
+        longPressed = true;
+        stepOnce();
+        repeatTimer = setInterval(stepOnce, REPEAT_INTERVAL);
+      }, LONG_PRESS_DELAY);
+
+      const onTouchMove = (e) => {
+        if (!pressTimer) return;
+        const t = e.touches[0];
+        if (!t) return;
+        const dx = t.clientX - startX;
+        const dy = t.clientY - startY;
+        // 超過一定距離就判定為捲動，取消長按/點擊
+        if (Math.abs(dx) > 10 || Math.abs(dy) > 10) {
+          moved = true;
+          clearTimers();
+        }
+      };
+
+      const onTouchEndOrCancel = () => {
+        // 沒有移動、也沒有進入長按階段時，視為一般點擊
+        if (!moved && pressTimer && !longPressed) {
+          stepOnce();
+        }
+
+        clearTimers();
+        window.removeEventListener('touchmove', onTouchMove);
+        window.removeEventListener('touchend', onTouchEndOrCancel);
+        window.removeEventListener('touchcancel', onTouchEndOrCancel);
+      };
+
+      window.addEventListener('touchmove', onTouchMove, { passive: true });
+      window.addEventListener('touchend', onTouchEndOrCancel);
+      window.addEventListener('touchcancel', onTouchEndOrCancel);
     };
 
     if (IS_TOUCH_DEVICE) {
-      // 觸控裝置僅使用 touch 事件，避免瀏覽器產生的模擬 mousedown 造成重複觸發
-      target.addEventListener('touchstart', onPointerDown, { passive: false });
+      // 觸控裝置僅使用 touch 事件，且不阻止預設行為，讓外層頁面可以捲動
+      target.addEventListener('touchstart', onTouchStart, { passive: true });
     } else {
       // 非觸控環境只使用滑鼠事件
-      target.addEventListener('mousedown', onPointerDown);
+      target.addEventListener('mousedown', onMouseDown);
     }
   }
 

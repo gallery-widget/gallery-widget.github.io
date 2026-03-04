@@ -2,6 +2,7 @@
 # 後台管理頁面（僅供本地使用，不上傳到公開儲存庫）
 admin.html
 clear-cache.html
+admin/
 
 # 環境變數檔案（包含 API Token、密鑰等）
 .env
