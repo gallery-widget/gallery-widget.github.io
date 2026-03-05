@@ -163,6 +163,10 @@ const ui = {
   closeModalBtn: document.getElementById("closeModalBtn"),
   googleSignInBtn: document.getElementById("googleSignInBtn"),
   toastContainer: document.getElementById("toastContainer"),
+  // Upload UI elements
+  uploadStatus: document.getElementById("uploadStatus"),
+  uploadProgressBar: document.getElementById("uploadProgressBar"),
+  uploadLog: document.getElementById("uploadLog"),
   // Migration UI elements
   albumizrUrls: document.getElementById("albumizrUrls"),
   startMigrationBtn: document.getElementById("startMigrationBtn"),
@@ -1410,28 +1414,106 @@ async function prepareImage(file) {
 }
 
 async function uploadImages(files) {
+  // 僅保留圖片檔案
+  const imageFiles = files.filter(file => file.type && file.type.startsWith("image/"));
+  const skippedCount = files.length - imageFiles.length;
+
+  if (!imageFiles.length) {
+    showToast("沒有可上傳的圖片。", 'warning');
+    return;
+  }
+
+  // 顯示上傳狀態面板
+  if (ui.uploadStatus) {
+    ui.uploadStatus.classList.remove('hidden');
+    if (ui.uploadLog) ui.uploadLog.innerHTML = '';
+    if (ui.uploadProgressBar) ui.uploadProgressBar.style.width = '0%';
+  }
+
+  if (skippedCount > 0) {
+    if (ui.uploadLog) {
+      const msg = `略過 ${skippedCount} 個非圖片檔案。`;
+      const logItem = document.createElement('div');
+      logItem.className = 'migration-log-item warning';
+      logItem.innerHTML = `
+        <div class="migration-log-icon">⚠</div>
+        <div class="migration-log-text">${msg}</div>
+      `;
+      ui.uploadLog.appendChild(logItem);
+    } else {
+      showToast(`略過 ${skippedCount} 個非圖片檔案。`, 'warning');
+    }
+  }
+
+  const totalImages = imageFiles.length;
+  let processedCount = 0;
+  let successCount = 0;
+
+  function addUploadLog(message, type = 'info') {
+    if (!ui.uploadLog) {
+      // 後備：若找不到面板則退回 toast
+      showToast(message, type === 'error' ? 'error' : type, 4000);
+      return;
+    }
+
+    const logItem = document.createElement('div');
+    logItem.className = `migration-log-item ${type}`;
+
+    const icons = {
+      success: '✓',
+      error: '✕',
+      info: 'ℹ',
+      warning: '⚠',
+    };
+
+    logItem.innerHTML = `
+      <div class="migration-log-icon">${icons[type] || icons.info}</div>
+      <div class="migration-log-text">${message}</div>
+    `;
+
+    ui.uploadLog.appendChild(logItem);
+    ui.uploadLog.scrollTop = ui.uploadLog.scrollHeight;
+  }
+
+  function updateUploadProgress(current, total) {
+    if (!ui.uploadProgressBar) return;
+    const percentage = total > 0 ? Math.round((current / total) * 100) : 0;
+    ui.uploadProgressBar.style.width = `${percentage}%`;
+  }
+
+  addUploadLog(`開始上傳 ${totalImages} 張圖片...`, 'info');
+  updateUploadProgress(0, totalImages);
+
   // 如果没有选中相册，自动创建一个
   const isNewAlbum = !state.album;
   if (!state.album) {
-    setStatus("自動建立新相簿...", 'info');
+    addUploadLog("自動建立新相簿...", 'info');
     const album = await createAlbum();
     if (!album) {
       return;
     }
   }
 
-  const baseOrder = state.images.length
-    ? state.images[state.images.length - 1].sort_order
-    : 0;
+  // 以資料庫中的最大 sort_order 為基準，確保新圖片永遠排在最後
+  let baseOrder = -1;
+  const { data: latestImages, error: latestError } = await supabase
+    .from("images")
+    .select("sort_order")
+    .eq("album_id", state.album.id)
+    .order("sort_order", { ascending: false, nullsFirst: false })
+    .limit(1);
 
-  for (let i = 0; i < files.length; i += 1) {
-    const file = files[i];
-    if (!file.type.startsWith("image/")) {
-      showToast(`略過 ${file.name}`, 'warning', 2000);
-      continue;
-    }
+  if (!latestError && latestImages && latestImages.length > 0 && latestImages[0].sort_order != null) {
+    baseOrder = latestImages[0].sort_order;
+  } else if (state.images.length) {
+    // 後備：使用目前載入的最後一張圖片排序
+    baseOrder = state.images[state.images.length - 1].sort_order ?? -1;
+  }
 
-    setStatus(`處理中 ${file.name}...`, 'info');
+  for (let i = 0; i < totalImages; i += 1) {
+    const file = imageFiles[i];
+
+    addUploadLog(`處理中 ${file.name}...`, 'info');
     const { blob, width, height, extension, mimeType } = await prepareImage(file);
 
     const path = `${state.album.id}/${newId()}.${extension}`;
@@ -1445,7 +1527,10 @@ async function uploadImages(files) {
       const result = await uploadToR2(blob, path, contentType);
       
       if (!result.success) {
-        setStatus(result.error, 'error');
+        processedCount += 1;
+        addUploadLog(`✗ 上傳 ${file.name} 失敗：${result.error}`, 'error');
+        updateUploadProgress(processedCount, totalImages);
+        showToast(result.error, 'error');
         return;
       }
       
@@ -1457,7 +1542,10 @@ async function uploadImages(files) {
         .upload(path, blob, { contentType });
 
       if (uploadError) {
-        setStatus(uploadError.message, 'error');
+        processedCount += 1;
+        addUploadLog(`✗ 上傳 ${file.name} 失敗：${uploadError.message}`, 'error');
+        updateUploadProgress(processedCount, totalImages);
+        showToast(uploadError.message, 'error');
         return;
       }
       
@@ -1479,11 +1567,17 @@ async function uploadImages(files) {
       });
 
     if (insertError) {
-      setStatus(insertError.message, 'error');
+      processedCount += 1;
+      addUploadLog(`✗ 儲存 ${file.name} 資料失敗：${insertError.message}`, 'error');
+      updateUploadProgress(processedCount, totalImages);
+      showToast(insertError.message, 'error');
       return;
     }
 
-    logUpload(`已上傳 ${file.name}`);
+    successCount += 1;
+    processedCount += 1;
+    addUploadLog(`✓ 已上傳 ${file.name}`, 'success');
+    updateUploadProgress(processedCount, totalImages);
   }
 
   await loadImages();
@@ -1498,7 +1592,19 @@ async function uploadImages(files) {
     }
   }
   updateEmbed();
-  setStatus("上傳完成。", 'success');
+  addUploadLog(`上傳完成！成功上傳 ${successCount} 張圖片。`, successCount === totalImages ? 'success' : 'warning');
+  showToast('上傳完成！', successCount === totalImages ? 'success' : 'warning');
+
+  // 完成後自動清除並隱藏上傳面板，讓下次上傳再顯示
+  if (ui.uploadStatus) {
+    ui.uploadStatus.classList.add('hidden');
+  }
+  if (ui.uploadLog) {
+    ui.uploadLog.innerHTML = '';
+  }
+  if (ui.uploadProgressBar) {
+    ui.uploadProgressBar.style.width = '0%';
+  }
 }
 
 ui.signInBtn.addEventListener("click", async () => {

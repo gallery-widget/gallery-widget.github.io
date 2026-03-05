@@ -74,6 +74,12 @@
           <input id="fileInput" type="file" accept="image/*" multiple />
           <span>拖曳圖片到此處或點擊上傳</span>
         </label>
+        <div id="uploadStatus" class="migration-status hidden">
+          <div class="migration-progress">
+            <div class="migration-progress-bar" id="uploadProgressBar"></div>
+          </div>
+          <div id="uploadLog" class="migration-log"></div>
+        </div>
       </section>
 
       <section class="card" style="margin-top: 0px;">
