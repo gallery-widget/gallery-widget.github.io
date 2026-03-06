@@ -63,6 +63,11 @@ let pickr = null;
 let loadAlbumsRun = 0;
 let draggedAlbumElement = null;
 
+function formatImageCountLabel(count) {
+  const safeCount = typeof count === 'number' && count > 0 ? count : 0;
+  return `${safeCount}張圖片`;
+}
+
 // 判斷是否為行動裝置（以視窗寬度與指標型態為準）
 function isMobileDevice() {
   if (window.matchMedia) {
@@ -372,10 +377,10 @@ async function loadAlbums() {
 
 
   for (const album of albums) {
-    // 获取该相册的前5张图片
-    const { data: images } = await supabase
+    // 获取该相册的前5张图片，同時取得總數量
+    const { data: images, count: imageCount } = await supabase
       .from("images")
-      .select("path")
+      .select("path", { count: "exact" })
       .eq("album_id", album.id)
       .order("sort_order", { ascending: true })
       .limit(5);
@@ -422,6 +427,14 @@ async function loadAlbums() {
         updateEmbed();
       }
     });
+
+    // 圖片數量標籤
+    const meta = document.createElement("div");
+    meta.className = "album-meta";
+    const countBadge = document.createElement("span");
+    countBadge.className = "badge album-count-badge";
+    countBadge.textContent = formatImageCountLabel(imageCount ?? (images?.length || 0));
+    meta.appendChild(countBadge);
 
 
 
@@ -495,6 +508,7 @@ async function loadAlbums() {
 
     card.appendChild(preview);
     card.appendChild(input);
+    card.appendChild(meta);
     card.appendChild(actions);
     card.appendChild(mobileSort);
     ui.albumList.appendChild(card);
@@ -549,10 +563,10 @@ async function updateAlbumCardPreview(albumId) {
     return;
   }
 
-  // 獲取該相簿的前5張圖片
-  const { data: images } = await supabase
+  // 獲取該相簿的前5張圖片，同時取得總數量
+  const { data: images, count: imageCount } = await supabase
     .from("images")
-    .select("path")
+    .select("path", { count: "exact" })
     .eq("album_id", albumId)
     .order("sort_order", { ascending: true })
     .limit(5);
@@ -572,6 +586,12 @@ async function updateAlbumCardPreview(albumId) {
     } else {
       preview.style.background = "rgba(255,255,255,0.05)";
     }
+  }
+
+  // 更新圖片數量標籤
+  const countBadge = albumCard.querySelector('.album-count-badge');
+  if (countBadge) {
+    countBadge.textContent = formatImageCountLabel(imageCount ?? (images?.length || 0));
   }
 }
 

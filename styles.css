@@ -455,6 +455,17 @@ h2, h3 {
   color: var(--muted);
 }
 
+.album-meta {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 12px 8px;
+}
+
+.album-count-badge {
+  font-size: 11px;
+}
+
 .album-card .album-actions {
   position: absolute;
   top: 8px;
