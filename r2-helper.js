@@ -28,8 +28,24 @@ export async function uploadToR2(blob, filename, contentType) {
     });
 
     if (!response.ok) {
-      const errorText = await response.text();
-      return { success: false, error: `R2 上傳失敗: ${errorText}` };
+      let errorText;
+      try {
+        // 優先嘗試解析 JSON，取得更乾淨的錯誤訊息
+        const maybeJson = await response.text();
+        try {
+          const parsed = JSON.parse(maybeJson);
+          errorText = parsed.error || parsed.message || maybeJson;
+        } catch {
+          errorText = maybeJson;
+        }
+      } catch {
+        errorText = `HTTP ${response.status}`;
+      }
+
+      return {
+        success: false,
+        error: `R2 上傳失敗（HTTP ${response.status}）：${errorText}`,
+      };
     }
 
     const result = await response.json();
@@ -39,7 +55,29 @@ export async function uploadToR2(blob, filename, contentType) {
     
     return { success: true, url: publicUrl };
   } catch (error) {
-    return { success: false, error: error.message };
+    // 在 console 記錄更完整的錯誤資訊，方便開發者遠端診斷
+    console.error('R2 上傳發生例外', {
+      workerUrl: R2_CONFIG.workerUrl,
+      publicDomain: R2_CONFIG.publicDomain,
+      error,
+    });
+
+    let message = error?.message || '未知錯誤';
+
+    // 部分瀏覽器在網路錯誤 / CORS / HTTPS 問題時只回傳通用的 Failed to fetch
+    if (message === 'Failed to fetch') {
+      message = [
+        '無法連線到圖片伺服器（Failed to fetch）。',
+        '可能原因：',
+        '1）網路連線或公司防火牆阻擋；',
+        '2）瀏覽器外掛（例如廣告阻擋、防追蹤）封鎖了上傳請求；',
+        '3）目前使用的網域或通訊協定（http/https）未被圖片伺服器允許。',
+        '請開啟瀏覽器開發者工具（F12）→ Network/Console，',
+        '將錯誤畫面與此錯誤訊息一併截圖回報給站長。',
+      ].join(' ');
+    }
+
+    return { success: false, error: message };
   }
 }
 
