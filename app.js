@@ -62,6 +62,7 @@ const state = {
 let pickr = null;
 let loadAlbumsRun = 0;
 let draggedAlbumElement = null;
+const replacingImageIds = new Set();
 
 function formatImageCountLabel(count) {
   const safeCount = typeof count === 'number' && count > 0 ? count : 0;
@@ -752,6 +753,8 @@ function renderImages() {
   }
 
   state.images.forEach((image, index) => {
+    const isReplacing = replacingImageIds.has(image.id);
+
     const card = document.createElement("div");
     card.className = "image-card";
     card.draggable = !isMobileDevice();
@@ -775,9 +778,23 @@ function renderImages() {
     linkInput.addEventListener("change", () => updateImageLink(image.id, linkInput));
 
     const actions = document.createElement("div");
+    actions.className = "image-card-actions";
+    const meta = document.createElement("div");
+    meta.className = "image-card-meta";
     // 匿名和登入用戶都可以刪除相片
     if (state.album) {
+      const replaceBtn = document.createElement("button");
+      replaceBtn.type = "button";
+      replaceBtn.className = "badge image-replace-btn";
+      replaceBtn.textContent = isReplacing ? "替換中..." : "替換";
+      replaceBtn.disabled = isReplacing;
+      replaceBtn.addEventListener("click", (e) => {
+        e.stopPropagation();
+        replaceImage(image);
+      });
+
       const remove = document.createElement("button");
+      remove.type = "button";
       remove.className = "btn ghost";
       remove.textContent = "✕";
       remove.style.fontSize = "18px";
@@ -787,7 +804,12 @@ function renderImages() {
       remove.style.display = "flex";
       remove.style.alignItems = "center";
       remove.style.justifyContent = "center";
-      remove.addEventListener("click", () => deleteImage(image));
+      remove.disabled = isReplacing;
+      remove.addEventListener("click", (e) => {
+        e.stopPropagation();
+        deleteImage(image);
+      });
+      meta.appendChild(replaceBtn);
       actions.appendChild(remove);
     }
 
@@ -842,6 +864,7 @@ function renderImages() {
     card.appendChild(img);
     card.appendChild(input);
     card.appendChild(linkInput);
+    card.appendChild(meta);
     card.appendChild(actions);
     card.appendChild(mobileSort);
     ui.imageList.appendChild(card);
@@ -1166,6 +1189,121 @@ async function updateImageLink(imageId, inputEl) {
   inputEl.value = payload.custom_link || "";
 
   updateEmbed();
+}
+
+function pickReplacementImageFile() {
+  return new Promise((resolve) => {
+    const input = document.createElement("input");
+    input.type = "file";
+    input.accept = "image/*";
+    input.style.display = "none";
+
+    input.addEventListener("change", () => {
+      const file = input.files && input.files[0] ? input.files[0] : null;
+      input.remove();
+      resolve(file);
+    }, { once: true });
+
+    document.body.appendChild(input);
+    input.click();
+  });
+}
+
+async function deleteFileByPath(pathOrUrl) {
+  if (!pathOrUrl) return;
+
+  if (isR2Url(pathOrUrl)) {
+    const filename = extractFilenameFromR2Url(pathOrUrl);
+    if (!filename) return;
+    const result = await deleteFromR2(filename);
+    if (!result.success) {
+      throw new Error(result.error || "無法刪除 R2 檔案");
+    }
+    return;
+  }
+
+  const { error } = await supabase.storage.from(BUCKET).remove([pathOrUrl]);
+  if (error) {
+    throw error;
+  }
+}
+
+async function replaceImage(image) {
+  if (!state.album || !image || replacingImageIds.has(image.id)) {
+    return;
+  }
+
+  const file = await pickReplacementImageFile();
+  if (!file) {
+    return;
+  }
+  if (!file.type || !file.type.startsWith("image/")) {
+    setStatus("請選擇圖片檔案。", "warning");
+    return;
+  }
+
+  replacingImageIds.add(image.id);
+  renderImages();
+
+  const oldPath = image.path;
+  let newPath = "";
+
+  try {
+    const { blob, width, height, extension, mimeType } = await prepareImage(file);
+    const uploadKey = `${state.album.id}/${newId()}.${extension}`;
+    newPath = uploadKey;
+
+    if (R2_CONFIG.enabled) {
+      const uploadResult = await uploadToR2(blob, uploadKey, mimeType);
+      if (!uploadResult.success) {
+        throw new Error(uploadResult.error || "上傳到 R2 失敗");
+      }
+      newPath = uploadResult.url;
+    } else {
+      const { error: uploadError } = await supabase.storage
+        .from(BUCKET)
+        .upload(uploadKey, blob, { contentType: mimeType });
+
+      if (uploadError) {
+        throw uploadError;
+      }
+    }
+
+    const { error: updateError } = await supabase
+      .from("images")
+      .update({
+        path: newPath,
+        width,
+        height,
+      })
+      .eq("id", image.id);
+
+    if (updateError) {
+      try {
+        await deleteFileByPath(newPath);
+      } catch (rollbackError) {
+        console.warn("替換回滾失敗，可能留下新檔案:", rollbackError);
+      }
+      throw updateError;
+    }
+
+    deleteFileByPath(oldPath).catch((cleanupError) => {
+      console.warn("舊圖片刪除失敗，可能留下舊檔案:", cleanupError);
+    });
+
+    await loadImages();
+    if (state.user && state.album) {
+      await updateAlbumCardPreview(state.album.id);
+    }
+    updateEmbed();
+    showToast("圖片已替換。", "success");
+  } catch (error) {
+    const message = error?.message || "替換圖片失敗";
+    setStatus(message, "error");
+  } finally {
+    replacingImageIds.delete(image.id);
+    renderImages();
+  }
 }
 
 async function deleteImage(image) {

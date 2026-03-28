@@ -639,14 +639,21 @@ h2, h3 {
   font-size: 12px;
   color: var(--muted);
   min-height: auto;
-  margin-bottom: 8px;
+  margin-bottom: 2px;
 }
 
 .image-card input::placeholder {
   color: var(--muted);
 }
 
-.image-card > div {
+.image-card .image-card-meta {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 12px 10px;
+}
+
+.image-card .image-card-actions {
   position: absolute;
   top: 8px;
   right: 8px;
@@ -663,6 +670,28 @@ h2, h3 {
   background: var(--overlay-backdrop);
   transform: none;
   box-shadow: none;
+}
+
+.image-card .image-replace-btn {
+  border: none;
+  background: var(--border);
+  color: var(--muted);
+  font-size: 11px;
+  line-height: 1;
+  min-height: 28px;
+  cursor: pointer;
+  padding: 6px 10px;
+  border-radius: 999px;
+}
+
+.image-card .image-replace-btn:hover:not(:disabled) {
+  background: var(--overlay-backdrop-soft);
+  color: var(--ink);
+}
+
+.image-card .image-replace-btn:disabled {
+  opacity: 0.7;
+  cursor: wait;
 }
 
 .embed {
